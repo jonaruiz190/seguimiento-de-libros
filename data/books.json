@@ -6,7 +6,7 @@
     "year": 1967,
     "pages": 471,
     "rating": 4.8,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780307474728-L.jpg",
+    "cover": "/covers/cien-anos.jpg",
     "categories": ["Realismo mágico", "Clásicos", "Literatura latinoamericana"],
     "synopsis": "La historia de la familia Buendía se extiende a lo largo de siete generaciones en el mítico pueblo de Macondo. Entre amores, guerras, prodigios y olvidos, la novela explora la soledad, el destino y la memoria de todo un continente."
   },
@@ -17,7 +17,7 @@
     "year": 1965,
     "pages": 688,
     "rating": 4.7,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780441172719-L.jpg",
+    "cover": "/covers/dune.jpg",
     "categories": ["Ciencia ficción", "Aventura"],
     "synopsis": "Paul Atreides llega con su familia a Arrakis, el único planeta donde existe la especia más valiosa del universo. Una traición lo empuja al desierto, donde deberá comprender su poder y el destino que otros han imaginado para él."
   },
@@ -28,7 +28,7 @@
     "year": 1813,
     "pages": 432,
     "rating": 4.6,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg",
+    "cover": "/covers/orgullo-prejuicio.jpg",
     "categories": ["Romance", "Clásicos"],
     "synopsis": "Elizabeth Bennet y Fitzwilliam Darcy se enfrentan a sus primeras impresiones, al orgullo y a las expectativas sociales de la Inglaterra rural. Una historia ingeniosa sobre el amor, la familia y la capacidad de reconocer los propios errores."
   },
@@ -39,7 +39,7 @@
     "year": 2018,
     "pages": 320,
     "rating": 4.5,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780735211292-L.jpg",
+    "cover": "/covers/habitos-atomicos.jpg",
     "categories": ["Desarrollo personal", "Psicología"],
     "synopsis": "Una guía práctica para crear buenos hábitos, abandonar los que no funcionan y mejorar cada día mediante cambios pequeños. James Clear explica cómo el entorno, la identidad y los sistemas influyen más que la fuerza de voluntad."
   },
@@ -50,7 +50,7 @@
     "year": 2007,
     "pages": 872,
     "rating": 4.7,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780756404741-L.jpg",
+    "cover": "/covers/nombre-viento.jpg",
     "categories": ["Fantasía", "Aventura"],
     "synopsis": "Kvothe, músico, mago y figura legendaria, narra la verdad sobre su vida: una infancia entre artistas itinerantes, años de pobreza y su obstinada búsqueda de respuestas en la Universidad."
   },
@@ -61,7 +61,7 @@
     "year": 1949,
     "pages": 328,
     "rating": 4.6,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780451524935-L.jpg",
+    "cover": "/covers/1984.jpg",
     "categories": ["Ciencia ficción", "Clásicos", "Distopía"],
     "synopsis": "Winston Smith vive bajo la vigilancia permanente del Gran Hermano y trabaja reescribiendo el pasado. Su deseo de verdad y libertad lo conduce a una rebelión íntima contra un régimen que controla incluso el pensamiento."
   },
@@ -72,7 +72,7 @@
     "year": 2011,
     "pages": 498,
     "rating": 4.5,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780062316097-L.jpg",
+    "cover": "/covers/sapiens.jpg",
     "categories": ["Historia", "Ciencia"],
     "synopsis": "Un recorrido por la historia de la humanidad, desde la aparición del Homo sapiens hasta la era tecnológica. El libro examina las revoluciones cognitiva, agrícola y científica que transformaron nuestra manera de vivir."
   },
@@ -83,7 +83,7 @@
     "year": 2018,
     "pages": 400,
     "rating": 4.4,
-    "cover": "https://covers.openlibrary.org/b/isbn/9780316556347-L.jpg",
+    "cover": "/covers/circe.jpg",
     "categories": ["Fantasía", "Mitología"],
     "synopsis": "Desterrada por Zeus a una isla, Circe descubre sus poderes y se cruza con algunas de las figuras más conocidas de la mitología griega. Una reinterpretación íntima sobre la independencia, la transformación y la identidad."
   }

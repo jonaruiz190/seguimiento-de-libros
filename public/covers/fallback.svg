@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900">
+  <rect width="600" height="900" fill="#1f5c45"/>
+  <rect x="35" y="35" width="530" height="830" fill="none" stroke="#d9c888" stroke-width="3"/>
+  <text x="300" y="410" fill="#fffdf8" font-family="Georgia,serif" font-size="42"
+    text-anchor="middle">Seguimiento</text>
+  <text x="300" y="470" fill="#fffdf8" font-family="Georgia,serif" font-size="42"
+    text-anchor="middle">de Libros</text>
+  <text x="300" y="550" fill="#d9c888" font-family="Arial,sans-serif" font-size="23"
+    text-anchor="middle">Portada no disponible</text>
+</svg>

@@ -5,7 +5,6 @@ import helmet from "helmet";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBooksRouter } from "./routes/books.js";
 import { createTrackingRouter } from "./routes/tracking.js";
-import { createMediaRouter } from "./routes/media.js";
 import {
   errorHandler,
   notFound,
@@ -15,7 +14,7 @@ import {
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const publicDirectory = path.resolve(currentDirectory, "../public");
 
-export function createApp({ pool, config, fetchImpl = fetch }) {
+export function createApp({ pool, config }) {
   const app = express();
   app.disable("x-powered-by");
   if (config.trustProxy) app.set("trust proxy", config.trustProxy);
@@ -50,7 +49,6 @@ export function createApp({ pool, config, fetchImpl = fetch }) {
       next(error);
     }
   });
-  app.use("/media", createMediaRouter({ pool, fetchImpl }));
   app.use("/api/auth", createAuthRouter({ pool, config }));
   app.use("/api/books", createBooksRouter({ pool, config }));
   app.use("/api/tracking", createTrackingRouter({ pool, config }));

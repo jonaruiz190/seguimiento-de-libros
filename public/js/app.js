@@ -298,6 +298,7 @@ function renderBooks() {
   `).join("");
 
   $("#empty-search").classList.toggle("is-hidden", filtered.length > 0);
+  attachImageFallbacks($("#recommendations-grid"));
   $$("[data-book-id]").forEach((card) => {
     card.addEventListener("click", () => openBookModal(card.dataset.bookId));
     card.addEventListener("keydown", (event) => {
@@ -337,6 +338,7 @@ function openBookModal(bookId) {
     </div>
   `;
 
+  attachImageFallbacks($("#book-detail"));
   $("#detail-track-button").addEventListener("click", () => {
     closeBookModal();
     openTrackingModal(tracked?.id, book.id);
@@ -449,6 +451,7 @@ function renderTracking() {
   }).join("");
 
   $("#empty-tracking").classList.toggle("is-hidden", filtered.length > 0);
+  attachImageFallbacks($("#tracking-table-body"));
   $$("[data-view-book]").forEach((button) => {
     button.addEventListener("click", () => openBookModal(button.dataset.viewBook));
   });
@@ -515,6 +518,14 @@ function safeImageUrl(value) {
   } catch {
     return "";
   }
+}
+
+function attachImageFallbacks(scope) {
+  $$("img", scope).forEach((image) => {
+    image.addEventListener("error", () => {
+      image.src = "/covers/fallback.svg";
+    }, { once: true });
+  });
 }
 
 let toastTimer;

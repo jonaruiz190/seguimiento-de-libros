@@ -87,47 +87,11 @@ test("registra un usuario y crea una cookie de sesión HttpOnly", async () => {
   assert.match(response.headers["set-cookie"][0], /SameSite=Lax/);
 });
 
-test("sirve portadas externas desde el mismo origen", async () => {
-  const pool = {
-    query: async () => ({
-      rowCount: 1,
-      rows: [{
-        title: "Libro de prueba",
-        cover_url: "https://covers.openlibrary.org/b/isbn/test-L.jpg"
-      }]
-    })
-  };
-  const fetchImpl = async () => new Response(Buffer.from([0xff, 0xd8, 0xff]), {
-    status: 200,
-    headers: { "content-type": "image/jpeg" }
-  });
-
-  const response = await request(createApp({ pool, config, fetchImpl }))
-    .get("/media/books/proxy-test");
+test("sirve las portadas locales como archivos estáticos", async () => {
+  const pool = { query: async () => ({ rowCount: 1, rows: [] }) };
+  const response = await request(createApp({ pool, config })).get("/covers/dune.jpg");
 
   assert.equal(response.status, 200);
   assert.match(response.headers["content-type"], /image\/jpeg/);
-  assert.equal(response.body.length, 3);
-});
-
-test("genera una portada SVG si el proveedor externo falla", async () => {
-  const pool = {
-    query: async () => ({
-      rowCount: 1,
-      rows: [{
-        title: "Libro sin portada",
-        cover_url: "https://covers.openlibrary.org/b/isbn/missing-L.jpg"
-      }]
-    })
-  };
-  const fetchImpl = async () => {
-    throw new Error("Proveedor no disponible");
-  };
-
-  const response = await request(createApp({ pool, config, fetchImpl }))
-    .get("/media/books/fallback-test");
-
-  assert.equal(response.status, 200);
-  assert.match(response.headers["content-type"], /image\/svg\+xml/);
-  assert.match(response.body.toString("utf8"), /Libro sin portada/);
+  assert.equal(response.body.length > 1_000, true);
 });
