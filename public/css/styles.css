@@ -818,11 +818,13 @@ tr:last-child td {
 
 .dashboard-grid {
   display: grid;
+  min-width: 0;
   grid-template-columns: 1fr 1fr;
   gap: 22px;
 }
 
 .dashboard-panel {
+  min-width: 0;
   padding: 27px;
   background: var(--white);
   border: 1px solid var(--line);
@@ -847,6 +849,8 @@ tr:last-child td {
 
 .monthly-chart {
   display: grid;
+  width: 100%;
+  min-width: 0;
   min-height: 245px;
   padding-top: 20px;
   align-items: end;
