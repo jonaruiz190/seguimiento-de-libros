@@ -2,6 +2,7 @@ const state = {
   user: null,
   books: [],
   tracking: [],
+  dashboard: null,
   category: "Todos",
   search: "",
   trackingSearch: "",
@@ -45,6 +46,8 @@ function bindEvents() {
   });
   $("#add-book-button").addEventListener("click", () => openTrackingModal());
   $("#tracking-form").addEventListener("submit", saveTracking);
+  $("#tracking-status").addEventListener("change", applyDateDefaults);
+  $("#refresh-dashboard").addEventListener("click", () => loadDashboard(true));
 
   $$("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
@@ -208,6 +211,7 @@ function resetToLogin() {
   state.user = null;
   state.books = [];
   state.tracking = [];
+  state.dashboard = null;
   $("#app").classList.add("is-hidden");
   $("#login-screen").classList.remove("is-hidden");
   $("#logout-button").classList.add("is-hidden");
@@ -229,13 +233,14 @@ function greeting() {
   return "Buenas noches";
 }
 
-function showView(viewName) {
+async function showView(viewName) {
   $$(".view").forEach((view) => view.classList.add("is-hidden"));
   $(`#${viewName}-view`).classList.remove("is-hidden");
   $$("[data-view]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === viewName);
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
+  if (viewName === "dashboard") await loadDashboard();
 }
 
 function renderCategoryFilters() {
@@ -368,7 +373,13 @@ function openTrackingModal(trackingId = null, preferredBookId = null) {
   $("#tracking-format").value = item?.format || "Físico";
   $("#tracking-rating").value = String(item?.rating || 0);
   $("#tracking-comment").value = item?.comment || "";
+  $("#tracking-started-at").value = dateInputValue(item?.startedAt);
+  $("#tracking-finished-at").value = dateInputValue(item?.finishedAt);
+  $("#tracking-hours").value = item?.readingMinutes
+    ? formatDecimal(item.readingMinutes / 60)
+    : "";
   $("#tracking-modal-title").textContent = item ? "Editar seguimiento" : "Añadir a mi seguimiento";
+  if (!item) applyDateDefaults();
   $("#tracking-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
 }
@@ -395,7 +406,10 @@ async function saveTracking(event) {
     status: $("#tracking-status").value,
     rating: Number($("#tracking-rating").value),
     comment: $("#tracking-comment").value.trim(),
-    format: $("#tracking-format").value
+    format: $("#tracking-format").value,
+    startedAt: $("#tracking-started-at").value || null,
+    finishedAt: $("#tracking-finished-at").value || null,
+    readingMinutes: Math.round((Number($("#tracking-hours").value) || 0) * 60)
   };
 
   try {
@@ -406,6 +420,7 @@ async function saveTracking(event) {
     const index = state.tracking.findIndex((entry) => entry.id === result.tracking.id);
     if (index >= 0) state.tracking[index] = result.tracking;
     else state.tracking.unshift(result.tracking);
+    state.dashboard = null;
 
     renderTracking();
     updateStats();
@@ -471,6 +486,7 @@ async function deleteTracking(id) {
   try {
     await api(`/api/tracking/${id}`, { method: "DELETE" });
     state.tracking = state.tracking.filter((entry) => entry.id !== id);
+    state.dashboard = null;
     renderTracking();
     updateStats();
     showToast("Libro eliminado del seguimiento.");
@@ -486,8 +502,172 @@ function updateStats() {
     .filter((item) => item.status === "Próximo a leer").length;
 }
 
+function applyDateDefaults() {
+  const status = $("#tracking-status").value;
+  const startedAt = $("#tracking-started-at");
+  const finishedAt = $("#tracking-finished-at");
+  const today = localDateString();
+
+  if ((status === "Leyendo" || status === "Leído") && !startedAt.value) {
+    startedAt.value = today;
+  }
+  if (status === "Leído" && !finishedAt.value) {
+    finishedAt.value = today;
+  }
+  if (status !== "Leído") finishedAt.value = "";
+}
+
+async function loadDashboard(force = false) {
+  const loading = $("#dashboard-loading");
+  const content = $("#dashboard-content");
+  if (state.dashboard && !force) {
+    renderDashboard();
+    return;
+  }
+
+  loading.textContent = "Calculando tus estadísticas...";
+  loading.classList.remove("is-hidden");
+  content.classList.add("is-hidden");
+
+  try {
+    state.dashboard = await api("/api/dashboard");
+    renderDashboard();
+  } catch (error) {
+    loading.textContent = error.message;
+  }
+}
+
+function renderDashboard() {
+  const dashboard = state.dashboard;
+  if (!dashboard) return;
+  const summary = dashboard.summary;
+
+  $("#metric-read-books").textContent = summary.readBooks;
+  $("#metric-reading-books").textContent = `${summary.readingBooks} leyendo actualmente`;
+  $("#metric-total-hours").textContent = formatHours(summary.totalMinutes);
+  $("#metric-average-days").textContent = summary.averageDays === null
+    ? "—"
+    : `${formatDecimal(summary.averageDays)} días`;
+  $("#metric-pages").textContent = numberFormatter.format(summary.pagesRead);
+  $("#metric-rating").textContent = summary.averageRating === null
+    ? "Sin puntuaciones"
+    : `Puntuación media: ${formatDecimal(summary.averageRating)} / 5`;
+  $("#metric-genre").textContent = summary.topGenre || "Sin datos";
+  $("#metric-author").textContent = summary.topAuthor || "Sin datos";
+
+  renderMonthlyChart(dashboard.monthly);
+  renderRankingChart("#genre-chart", dashboard.genres);
+  renderRankingChart("#author-chart", dashboard.authors);
+  renderDashboardBooks(dashboard.books);
+
+  $("#dashboard-loading").classList.add("is-hidden");
+  $("#dashboard-content").classList.remove("is-hidden");
+}
+
+function renderMonthlyChart(monthly) {
+  const max = Math.max(1, ...monthly.map((item) => item.books));
+  $("#monthly-chart").innerHTML = monthly.map((item) => {
+    const height = item.books === 0 ? 2 : Math.max(12, (item.books / max) * 92);
+    return `
+      <div class="month-column" title="${item.books} libros · ${formatHours(item.minutes)}">
+        <div class="month-column__track">
+          <div class="month-column__bar" style="height: ${height}%">
+            ${item.books ? `<span>${item.books}</span>` : ""}
+          </div>
+        </div>
+        <span>${escapeHtml(item.label)}</span>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderRankingChart(selector, rows) {
+  const container = $(selector);
+  if (!rows.length) {
+    container.innerHTML = '<p class="dashboard-empty">Finaliza libros para ver esta estadística.</p>';
+    return;
+  }
+
+  const max = Math.max(...rows.map((row) => row.value), 1);
+  container.innerHTML = rows.map((row) => `
+    <div class="ranking-row">
+      <span class="ranking-row__label" title="${escapeHtml(row.label)}">${escapeHtml(row.label)}</span>
+      <div class="ranking-row__track">
+        <div class="ranking-row__bar" style="width: ${(row.value / max) * 100}%"></div>
+      </div>
+      <strong>${row.value}</strong>
+    </div>
+  `).join("");
+}
+
+function renderDashboardBooks(books) {
+  const container = $("#dashboard-books");
+  if (!books.length) {
+    container.innerHTML = `
+      <p class="dashboard-empty">
+        Cuando marques un libro como leído, su duración y tiempo aparecerán aquí.
+      </p>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="dashboard-book-row dashboard-book-row--header">
+      <span>Libro</span><span>Inicio</span><span>Final</span><span>Duración</span><span>Horas</span>
+    </div>
+    ${books.map((book) => `
+      <div class="dashboard-book-row">
+        <div class="dashboard-book-title">
+          <img src="${safeImageUrl(book.cover)}" alt="">
+          <div>
+            <strong>${escapeHtml(book.title)}</strong>
+            <span>${escapeHtml(book.author)}</span>
+          </div>
+        </div>
+        <span>${formatDate(book.startedAt)}</span>
+        <span>${formatDate(book.finishedAt)}</span>
+        <span>${book.durationDays === null ? "Sin fechas" : `${book.durationDays} días`}</span>
+        <span>${formatHours(book.readingMinutes)}</span>
+      </div>
+    `).join("")}
+  `;
+  attachImageFallbacks(container);
+}
+
 function findBook(id) {
   return state.books.find((book) => book.id === id);
+}
+
+const numberFormatter = new Intl.NumberFormat("es");
+const dateFormatter = new Intl.DateTimeFormat("es", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC"
+});
+
+function formatHours(minutes) {
+  const hours = Number(minutes) / 60;
+  return `${formatDecimal(hours)} h`;
+}
+
+function formatDecimal(value) {
+  return Number(value).toLocaleString("es", { maximumFractionDigits: 1 });
+}
+
+function formatDate(value) {
+  if (!value) return "Sin registrar";
+  return dateFormatter.format(new Date(`${String(value).slice(0, 10)}T00:00:00Z`));
+}
+
+function dateInputValue(value) {
+  return value ? String(value).slice(0, 10) : "";
+}
+
+function localDateString() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 }
 
 function ratingStars(rating) {

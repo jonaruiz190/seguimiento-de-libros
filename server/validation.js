@@ -22,8 +22,19 @@ export const trackingSchema = z.object({
   status: z.enum(["Leyendo", "Próximo a leer", "Leído"]),
   rating: z.number().int().min(0).max(5),
   comment: z.string().trim().max(2000),
-  format: z.enum(["Físico", "Digital"])
-}).strict();
+  format: z.enum(["Físico", "Digital"]),
+  startedAt: z.iso.date().nullable(),
+  finishedAt: z.iso.date().nullable(),
+  readingMinutes: z.number().int().min(0).max(1000000)
+}).strict().superRefine((item, context) => {
+  if (item.startedAt && item.finishedAt && item.finishedAt < item.startedAt) {
+    context.addIssue({
+      code: "custom",
+      path: ["finishedAt"],
+      message: "La fecha de finalización no puede ser anterior al inicio."
+    });
+  }
+});
 
 export function validate(schema, input) {
   const result = schema.safeParse(input);

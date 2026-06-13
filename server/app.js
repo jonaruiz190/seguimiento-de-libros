@@ -5,6 +5,7 @@ import helmet from "helmet";
 import { createAuthRouter } from "./routes/auth.js";
 import { createBooksRouter } from "./routes/books.js";
 import { createTrackingRouter } from "./routes/tracking.js";
+import { createDashboardRouter } from "./routes/dashboard.js";
 import {
   errorHandler,
   notFound,
@@ -52,6 +53,7 @@ export function createApp({ pool, config }) {
   app.use("/api/auth", createAuthRouter({ pool, config }));
   app.use("/api/books", createBooksRouter({ pool, config }));
   app.use("/api/tracking", createTrackingRouter({ pool, config }));
+  app.use("/api/dashboard", createDashboardRouter({ pool, config }));
 
   app.use(express.static(publicDirectory, {
     extensions: ["html"],

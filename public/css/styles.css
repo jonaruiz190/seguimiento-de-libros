@@ -727,6 +727,287 @@ tr:last-child td {
   text-align: center;
 }
 
+.dashboard-view {
+  padding: 0 clamp(24px, 7vw, 110px) 80px;
+}
+
+.dashboard-heading {
+  display: flex;
+  padding: 64px 0 36px;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+.dashboard-heading h1 {
+  margin-bottom: 10px;
+  font-size: clamp(2.7rem, 5vw, 4.3rem);
+}
+
+.dashboard-heading > div > p:last-child {
+  max-width: 650px;
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.dashboard-loading {
+  padding: 70px;
+  color: var(--muted);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.metric-card {
+  display: flex;
+  min-height: 155px;
+  padding: 24px;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.metric-card--featured {
+  color: white;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(217, 200, 136, 0.25), transparent 28%),
+    var(--green);
+  border-color: var(--green);
+}
+
+.metric-card > span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.metric-card--featured > span,
+.metric-card--featured small {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.metric-card strong {
+  overflow: hidden;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(2.1rem, 4vw, 3.2rem);
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
+.metric-card strong.metric-card__text {
+  font-size: clamp(1.3rem, 2.3vw, 2rem);
+  line-height: 1.15;
+}
+
+.metric-card small {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.dashboard-panel {
+  padding: 27px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+.dashboard-panel--wide {
+  grid-column: 1 / -1;
+}
+
+.panel-heading {
+  display: flex;
+  margin-bottom: 25px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.panel-heading h2 {
+  margin-bottom: 0;
+  font-size: 1.65rem;
+}
+
+.monthly-chart {
+  display: grid;
+  min-height: 245px;
+  padding-top: 20px;
+  align-items: end;
+  grid-template-columns: repeat(12, 1fr);
+  gap: clamp(5px, 1.3vw, 16px);
+  border-bottom: 1px solid var(--line);
+}
+
+.month-column {
+  display: grid;
+  height: 225px;
+  align-items: end;
+  grid-template-rows: 1fr auto;
+  gap: 9px;
+  text-align: center;
+}
+
+.month-column__track {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.month-column__bar {
+  position: relative;
+  width: min(38px, 76%);
+  min-height: 4px;
+  background: var(--green);
+  border-radius: 5px 5px 0 0;
+  transition: height 300ms ease;
+}
+
+.month-column__bar span {
+  position: absolute;
+  right: 50%;
+  bottom: calc(100% + 5px);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  transform: translateX(50%);
+}
+
+.month-column > span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-transform: capitalize;
+}
+
+.ranking-chart {
+  display: grid;
+  gap: 16px;
+}
+
+.ranking-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.7fr) 1.4fr 28px;
+  align-items: center;
+  gap: 12px;
+}
+
+.ranking-row__label {
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ranking-row__track {
+  height: 9px;
+  overflow: hidden;
+  background: #eceae3;
+  border-radius: 999px;
+}
+
+.ranking-row__bar {
+  height: 100%;
+  background: var(--green);
+  border-radius: inherit;
+}
+
+.ranking-row:nth-child(2n) .ranking-row__bar {
+  background: #6e927e;
+}
+
+.ranking-row strong {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.dashboard-books-panel {
+  margin-top: 22px;
+}
+
+.dashboard-books {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.dashboard-book-row {
+  display: grid;
+  padding: 14px 16px;
+  align-items: center;
+  grid-template-columns: minmax(210px, 1.5fr) repeat(4, minmax(90px, 0.7fr));
+  gap: 18px;
+  background: var(--white);
+}
+
+.dashboard-book-row--header {
+  color: var(--muted);
+  background: #efede6;
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-book-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-book-title img {
+  width: 38px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
+.dashboard-book-title div {
+  min-width: 0;
+}
+
+.dashboard-book-title strong,
+.dashboard-book-title span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-book-title span,
+.dashboard-book-row > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.dashboard-empty {
+  padding: 38px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .modal {
   position: fixed;
   z-index: 50;
@@ -970,6 +1251,18 @@ tr:last-child td {
   .book-detail__info {
     padding: 55px 38px;
   }
+
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-book-row {
+    grid-template-columns: minmax(200px, 1.5fr) repeat(4, 100px);
+  }
+
+  .dashboard-books {
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1001,7 +1294,7 @@ tr:last-child td {
     left: 0;
     display: grid;
     height: 66px;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr);
     background: var(--white);
     border-top: 1px solid var(--line);
   }
@@ -1066,6 +1359,24 @@ tr:last-child td {
   .book-detail__info {
     padding: 38px 28px;
   }
+
+  .dashboard-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-panel--wide {
+    grid-column: auto;
+  }
+
+  .monthly-chart {
+    overflow-x: auto;
+    grid-template-columns: repeat(12, minmax(34px, 1fr));
+  }
 }
 
 @media (max-width: 460px) {
@@ -1123,5 +1434,22 @@ tr:last-child td {
 
   .modal__content--form {
     padding: 36px 22px 24px;
+  }
+
+  .dashboard-view {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .metric-card {
+    min-height: 132px;
+  }
+
+  .dashboard-panel {
+    padding: 22px 17px;
   }
 }

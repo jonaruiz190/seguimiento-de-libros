@@ -38,6 +38,22 @@ test("rechaza estados y puntuaciones inválidos", () => {
     status: "Abandonado",
     rating: 8,
     comment: "",
-    format: "Digital"
+    format: "Digital",
+    startedAt: null,
+    finishedAt: null,
+    readingMinutes: 0
+  }), /no son válidos/);
+});
+
+test("rechaza una finalización anterior al inicio", () => {
+  assert.throws(() => validate(trackingSchema, {
+    bookId: "dune",
+    status: "Leído",
+    rating: 5,
+    comment: "",
+    format: "Digital",
+    startedAt: "2026-06-10",
+    finishedAt: "2026-06-01",
+    readingMinutes: 600
   }), /no son válidos/);
 });

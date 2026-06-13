@@ -95,3 +95,67 @@ test("sirve las portadas locales como archivos estáticos", async () => {
   assert.match(response.headers["content-type"], /image\/jpeg/);
   assert.equal(response.body.length > 1_000, true);
 });
+
+test("devuelve estadísticas de lectura aisladas para el usuario autenticado", async () => {
+  const pool = {
+    query: async (sql) => {
+      if (sql.includes("FROM sessions s")) {
+        return {
+          rowCount: 1,
+          rows: [{ id: "user-1", name: "Ana", email: "ana@example.com" }]
+        };
+      }
+      if (sql.includes("COUNT(*) FILTER")) {
+        return {
+          rowCount: 1,
+          rows: [{
+            read_books: 3,
+            reading_books: 1,
+            total_minutes: 1500,
+            pages_read: 1200,
+            average_rating: "4.5",
+            average_days: "12.5"
+          }]
+        };
+      }
+      if (sql.includes("JOIN book_categories")) {
+        return { rowCount: 1, rows: [{ label: "Fantasía", value: 2 }] };
+      }
+      if (sql.includes("GROUP BY b.author")) {
+        return { rowCount: 1, rows: [{ label: "Jane Austen", value: 2 }] };
+      }
+      if (sql.includes("TO_CHAR")) {
+        return { rowCount: 1, rows: [{ month: "2026-06", books: 2, minutes: 900 }] };
+      }
+      if (sql.includes("CASE")) {
+        return {
+          rowCount: 1,
+          rows: [{
+            id: "tracking-1",
+            title: "Libro",
+            author: "Autora",
+            cover: "/covers/dune.jpg",
+            pages: 300,
+            rating: 5,
+            startedAt: "2026-06-01",
+            finishedAt: "2026-06-10",
+            readingMinutes: 600,
+            durationDays: 10
+          }]
+        };
+      }
+      throw new Error(`Consulta no contemplada: ${sql}`);
+    }
+  };
+
+  const response = await request(createApp({ pool, config }))
+    .get("/api/dashboard")
+    .set("Cookie", "sid=session-token");
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.summary.totalMinutes, 1500);
+  assert.equal(response.body.summary.topGenre, "Fantasía");
+  assert.equal(response.body.summary.topAuthor, "Jane Austen");
+  assert.equal(response.body.monthly.length, 12);
+  assert.equal(response.body.books[0].durationDays, 10);
+});

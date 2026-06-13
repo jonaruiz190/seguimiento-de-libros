@@ -53,6 +53,7 @@
       <nav class="desktop-nav" aria-label="Navegación principal">
         <button class="nav-link is-active" type="button" data-view="home">Inicio</button>
         <button class="nav-link" type="button" data-view="tracking">Mi seguimiento</button>
+        <button class="nav-link" type="button" data-view="dashboard">Dashboard</button>
       </nav>
       <div class="user-menu">
         <button id="user-button" class="user-button" type="button" aria-expanded="false">
@@ -145,11 +146,103 @@
           <p id="empty-tracking" class="empty-state is-hidden">Aún no hay libros que coincidan con este filtro.</p>
         </div>
       </section>
+
+      <section id="dashboard-view" class="view dashboard-view is-hidden">
+        <div class="dashboard-heading">
+          <div>
+            <p class="eyebrow">Tu historia en números</p>
+            <h1>Dashboard de lectura</h1>
+            <p>Descubre tu ritmo, los temas que más eliges y cuánto tiempo dedicas a cada libro.</p>
+          </div>
+          <button id="refresh-dashboard" class="button button--secondary" type="button">
+            Actualizar datos
+          </button>
+        </div>
+
+        <div id="dashboard-loading" class="dashboard-loading">Calculando tus estadísticas...</div>
+        <div id="dashboard-content" class="is-hidden">
+          <div class="metric-grid">
+            <article class="metric-card metric-card--featured">
+              <span>Libros leídos</span>
+              <strong id="metric-read-books">0</strong>
+              <small id="metric-reading-books">0 leyendo actualmente</small>
+            </article>
+            <article class="metric-card">
+              <span>Tiempo total</span>
+              <strong id="metric-total-hours">0 h</strong>
+              <small>Horas registradas</small>
+            </article>
+            <article class="metric-card">
+              <span>Promedio por libro</span>
+              <strong id="metric-average-days">—</strong>
+              <small>Días entre inicio y final</small>
+            </article>
+            <article class="metric-card">
+              <span>Páginas leídas</span>
+              <strong id="metric-pages">0</strong>
+              <small id="metric-rating">Sin puntuaciones</small>
+            </article>
+            <article class="metric-card">
+              <span>Género principal</span>
+              <strong id="metric-genre" class="metric-card__text">—</strong>
+              <small>Según libros finalizados</small>
+            </article>
+            <article class="metric-card">
+              <span>Autor más leído</span>
+              <strong id="metric-author" class="metric-card__text">—</strong>
+              <small>Según libros finalizados</small>
+            </article>
+          </div>
+
+          <div class="dashboard-grid">
+            <article class="dashboard-panel dashboard-panel--wide">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Últimos 12 meses</p>
+                  <h2>Libros terminados</h2>
+                </div>
+              </div>
+              <div id="monthly-chart" class="monthly-chart"></div>
+            </article>
+
+            <article class="dashboard-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Preferencias reales</p>
+                  <h2>Géneros más leídos</h2>
+                </div>
+              </div>
+              <div id="genre-chart" class="ranking-chart"></div>
+            </article>
+
+            <article class="dashboard-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Autores recurrentes</p>
+                  <h2>Autores más leídos</h2>
+                </div>
+              </div>
+              <div id="author-chart" class="ranking-chart"></div>
+            </article>
+          </div>
+
+          <article class="dashboard-panel dashboard-books-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Detalle de ritmo</p>
+                <h2>Tiempo por libro</h2>
+              </div>
+            </div>
+            <div id="dashboard-books" class="dashboard-books"></div>
+          </article>
+        </div>
+      </section>
     </main>
 
     <nav class="mobile-nav" aria-label="Navegación móvil">
       <button class="mobile-nav__item is-active" type="button" data-view="home"><span>⌂</span>Inicio</button>
       <button class="mobile-nav__item" type="button" data-view="tracking"><span>▤</span>Seguimiento</button>
+      <button class="mobile-nav__item" type="button" data-view="dashboard"><span>◫</span>Dashboard</button>
     </nav>
   </div>
 
@@ -196,6 +289,18 @@
       </select>
       <label for="tracking-comment">Comentarios</label>
       <textarea id="tracking-comment" rows="4" placeholder="¿Qué te está pareciendo?"></textarea>
+      <div class="form-grid">
+        <label>Fecha de inicio
+          <input id="tracking-started-at" type="date">
+        </label>
+        <label>Fecha de finalización
+          <input id="tracking-finished-at" type="date">
+        </label>
+      </div>
+      <label for="tracking-hours">Horas dedicadas</label>
+      <input id="tracking-hours" type="number" min="0" max="16666" step="0.25"
+        inputmode="decimal" placeholder="Ejemplo: 12.5">
+      <p class="field-hint">Puedes actualizar este valor mientras avanzas en la lectura.</p>
       <button class="button button--primary button--full" type="submit">Guardar seguimiento</button>
     </form>
   </div>

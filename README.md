@@ -18,6 +18,8 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 - Recomendaciones basadas en categorías preferidas.
 - Catálogo con búsqueda y filtros.
 - Seguimiento con estado, puntuación, comentarios y formato.
+- Dashboard con horas, duración por libro, actividad mensual, géneros y autores.
+- Registro de fechas de inicio/finalización y tiempo dedicado.
 - Creación, edición y eliminación de registros.
 - Vista detallada de cada libro.
 - Portadas incluidas como recursos locales para evitar dependencias externas en ejecución.
@@ -105,6 +107,7 @@ npm run db:seed
 - `POST /api/tracking`
 - `PUT /api/tracking/:id`
 - `DELETE /api/tracking/:id`
+- `GET /api/dashboard`
 
 ## Configuración
 

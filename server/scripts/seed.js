@@ -66,14 +66,36 @@ try {
         );
       }
       await client.query(
-        `INSERT INTO tracking (user_id, book_id, status, rating, comment, format)
+        `INSERT INTO tracking
+          (user_id, book_id, status, rating, comment, format,
+           started_at, finished_at, reading_minutes)
          VALUES
-           ($1, 'cien-anos', 'Leyendo', 5, 'La atmósfera de Macondo es inolvidable.', 'Físico'),
-           ($1, 'dune', 'Próximo a leer', 0, 'Recomendación de un amigo.', 'Digital'),
-           ($1, 'orgullo-prejuicio', 'Leído', 4, 'Diálogos brillantes y personajes memorables.', 'Físico')`,
+           ($1, 'cien-anos', 'Leyendo', 5, 'La atmósfera de Macondo es inolvidable.',
+            'Físico', CURRENT_DATE - 12, NULL, 420),
+           ($1, 'dune', 'Próximo a leer', 0, 'Recomendación de un amigo.',
+            'Digital', NULL, NULL, 0),
+           ($1, 'orgullo-prejuicio', 'Leído', 4,
+            'Diálogos brillantes y personajes memorables.', 'Físico',
+            CURRENT_DATE - 48, CURRENT_DATE - 31, 780)`,
         [demoUserId]
       );
     }
+
+    await client.query(
+      `UPDATE tracking SET
+         started_at = COALESCE(started_at, CURRENT_DATE - 12),
+         reading_minutes = CASE WHEN reading_minutes = 0 THEN 420 ELSE reading_minutes END
+       WHERE user_id = $1 AND book_id = 'cien-anos'`,
+      [demoUserId]
+    );
+    await client.query(
+      `UPDATE tracking SET
+         started_at = COALESCE(started_at, CURRENT_DATE - 48),
+         finished_at = COALESCE(finished_at, CURRENT_DATE - 31),
+         reading_minutes = CASE WHEN reading_minutes = 0 THEN 780 ELSE reading_minutes END
+       WHERE user_id = $1 AND book_id = 'orgullo-prejuicio'`,
+      [demoUserId]
+    );
 
     await client.query("COMMIT");
     console.log(`Datos iniciales listos: ${books.length} libros y usuario de demostración.`);
