@@ -192,17 +192,6 @@ export async function getOpenLibraryBook(sourceId) {
 
 export async function translateBook(book, language, config) {
   if (!language || !config?.translationApiUrl) return book;
-  const languageAliases = {
-    es: ["es", "spa"],
-    en: ["en", "eng"],
-    fr: ["fr", "fre", "fra"],
-    de: ["de", "ger", "deu"],
-    it: ["it", "ita"],
-    pt: ["pt", "por"]
-  };
-  if (languageAliases[language]?.includes(String(book.language || "").toLowerCase())) {
-    return book;
-  }
   const values = [book.title, book.synopsis].filter(Boolean);
   if (!values.length) return book;
   try {
@@ -243,4 +232,53 @@ export async function translateBook(book, language, config) {
   } catch {
     return book;
   }
+}
+
+export async function translateBookTitles(books, language, config) {
+  if (!books.length || !language || !config?.translationApiUrl) return books;
+  const chunks = [];
+  for (let index = 0; index < books.length; index += 20) {
+    chunks.push(books.slice(index, index + 20));
+  }
+  const localizedChunks = await Promise.all(chunks.map(async (chunk) => {
+    const key = chunk.map((book) => `${book.source}:${book.sourceId}`).join(",");
+    try {
+      const payload = await cached(
+        `title-batch:${language}:${key}`,
+        7 * 24 * 60 * 60_000,
+        async () => {
+          const response = await fetch(config.translationApiUrl, {
+            method: "POST",
+            signal: AbortSignal.timeout(30_000),
+            headers: {
+              "Content-Type": "application/json",
+              ...(config.translationApiKey
+                ? { Authorization: `Bearer ${config.translationApiKey}` }
+                : {})
+            },
+            body: JSON.stringify({
+              q: chunk.map((book) => book.title),
+              source: "auto",
+              target: language,
+              format: "text",
+              api_key: config.translationApiKey || undefined
+            })
+          });
+          if (!response.ok) throw new Error("Translation unavailable");
+          return response.json();
+        }
+      );
+      const titles = Array.isArray(payload.translatedText)
+        ? payload.translatedText
+        : [payload.translatedText];
+      return chunk.map((book, index) => ({
+        ...book,
+        title: titles[index] || book.title,
+        translated: true
+      }));
+    } catch {
+      return chunk;
+    }
+  }));
+  return localizedChunks.flat();
 }

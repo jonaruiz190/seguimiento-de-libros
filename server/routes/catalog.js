@@ -6,7 +6,8 @@ import { getAniListBook, searchAniList } from "../services/anilist.js";
 import {
   getOpenLibraryBook,
   searchOpenLibrary,
-  translateBook
+  translateBook,
+  translateBookTitles
 } from "../services/catalog.js";
 import {
   catalogImportSchema,
@@ -298,10 +299,5 @@ async function importedSourceKeys(pool, books) {
 
 async function localizeBooks(books, language, config) {
   if (!config.translationApiUrl) return books;
-  const localized = await Promise.allSettled(books.map((book) =>
-    translateBook(book, language, config)
-  ));
-  return localized.map((result, index) =>
-    result.status === "fulfilled" ? result.value : books[index]
-  );
+  return translateBookTitles(books, language, config);
 }
