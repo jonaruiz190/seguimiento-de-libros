@@ -38,7 +38,7 @@ function cleanDescription(value) {
   if (!value) return null;
   return String(value)
     .replace(/^\[[^\]]+\]\[\d+\]:\s*/i, "")
-    .replace(/^\[\d+\]:\s+\S+$/gm, "")
+    .replace(/\[\d+\]:\s+\S+/g, "")
     .replace(/^>\s?/gm, "")
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/\s{3,}/g, "\n\n")
