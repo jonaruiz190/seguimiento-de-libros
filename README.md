@@ -16,15 +16,16 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 - Login contra usuarios almacenados en PostgreSQL.
 - Registro de cuentas con validación de contraseñas robustas.
 - Recomendaciones basadas en categorías preferidas.
-- Catálogo con búsqueda y filtros.
+- Buscador principal conectado al catálogo real de Open Library.
 - Seguimiento con estado, puntuación, comentarios y formato.
-- Dashboard con horas, duración por libro, actividad mensual, géneros y autores.
-- Registro de fechas de inicio/finalización y tiempo dedicado.
+- Dashboard con días de lectura, actividad mensual, géneros, autores, formatos y apps.
+- Registro de fechas de inicio/finalización y cálculo automático de duración.
 - Creación, edición y eliminación de registros.
 - Vista detallada de cada libro.
 - Reproductor de Spotify en la barra superior y OAuth opcional.
-- Enlaces para continuar leyendo en Kindle, Apple Books, Google Books u otra plataforma.
-- Página actual y proveedor de lectura por cada seguimiento.
+- Enlaces públicos de libro para Kindle, Apple Books y Google Books cuando existen.
+- Página actual y proveedor de lectura digital por cada seguimiento.
+- Edición de perfil: nombre, foto mediante URL y contraseña.
 - Búsqueda e importación de datos reales desde Open Library.
 - Actualización periódica de metadatos con `npm run catalog:refresh`.
 - Portadas incluidas como recursos locales para evitar dependencias externas en ejecución.
@@ -108,6 +109,7 @@ npm run db:seed
 - `POST /api/auth/register`
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
+- `PUT /api/auth/profile`
 - `GET /api/books`
 - `GET /api/tracking`
 - `POST /api/tracking`
@@ -134,8 +136,9 @@ Consulta `.env.example`.
 - `INTEGRATION_ENCRYPTION_KEY`: secreto largo y aleatorio para cifrar tokens OAuth.
 
 Kindle y Apple Books no ofrecen una API pública para leer el progreso personal del
-usuario. La aplicación guarda manualmente la página actual y un enlace al libro,
-sin solicitar ni almacenar contraseñas de esas plataformas.
+usuario. La aplicación guarda manualmente la página actual y la plataforma usada,
+sin solicitar ni almacenar contraseñas de esas plataformas. Google Books sí tiene
+OAuth para la biblioteca del usuario, pero no permite acceder a Kindle o Apple Books.
 
 Para mantener actualizados los libros importados, programa diariamente o
 semanalmente:

@@ -7,13 +7,18 @@ export function createDashboardRouter({ pool }) {
 
   router.get("/", asyncHandler(async (request, response) => {
     const userId = request.user.id;
-    const [summaryResult, genreResult, authorResult, monthlyResult, booksResult] =
+    const [summaryResult, genreResult, authorResult, monthlyResult, booksResult,
+      providerResult, formatResult] =
       await Promise.all([
         pool.query(
           `SELECT
              COUNT(*) FILTER (WHERE t.status = 'Leído')::int AS read_books,
              COUNT(*) FILTER (WHERE t.status = 'Leyendo')::int AS reading_books,
-             COALESCE(SUM(t.reading_minutes), 0)::int AS total_minutes,
+             COALESCE(SUM((t.finished_at - t.started_at) + 1) FILTER (
+               WHERE t.status = 'Leído'
+                 AND t.started_at IS NOT NULL
+                 AND t.finished_at IS NOT NULL
+             ), 0)::int AS total_days,
              COALESCE(SUM(b.pages) FILTER (WHERE t.status = 'Leído'), 0)::int AS pages_read,
              ROUND(AVG(t.rating) FILTER (
                WHERE t.status = 'Leído' AND t.rating > 0
@@ -51,7 +56,9 @@ export function createDashboardRouter({ pool }) {
         pool.query(
           `SELECT TO_CHAR(DATE_TRUNC('month', t.finished_at), 'YYYY-MM') AS month,
                   COUNT(*)::int AS books,
-                  COALESCE(SUM(t.reading_minutes), 0)::int AS minutes
+                  COALESCE(SUM((t.finished_at - t.started_at) + 1) FILTER (
+                    WHERE t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                  ), 0)::int AS days
            FROM tracking t
            WHERE t.user_id = $1
              AND t.status = 'Leído'
@@ -64,7 +71,7 @@ export function createDashboardRouter({ pool }) {
           `SELECT t.id, b.title, b.author, b.cover_url AS cover, b.pages,
                   t.rating, t.started_at AS "startedAt",
                   t.finished_at AS "finishedAt",
-                  t.reading_minutes AS "readingMinutes",
+                  t.format, t.reading_provider AS "readingProvider",
                   CASE
                     WHEN t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
                     THEN (t.finished_at - t.started_at) + 1
@@ -74,6 +81,24 @@ export function createDashboardRouter({ pool }) {
            JOIN books b ON b.id = t.book_id
            WHERE t.user_id = $1 AND t.status = 'Leído'
            ORDER BY t.finished_at DESC NULLS LAST, t.updated_at DESC`,
+          [userId]
+        ),
+        pool.query(
+          `SELECT COALESCE(t.reading_provider, 'Sin especificar') AS label,
+                  COUNT(*)::int AS value
+           FROM tracking t
+           WHERE t.user_id = $1 AND t.format = 'Digital'
+           GROUP BY COALESCE(t.reading_provider, 'Sin especificar')
+           ORDER BY value DESC, label
+           LIMIT 8`,
+          [userId]
+        ),
+        pool.query(
+          `SELECT t.format AS label, COUNT(*)::int AS value
+           FROM tracking t
+           WHERE t.user_id = $1
+           GROUP BY t.format
+           ORDER BY value DESC, label`,
           [userId]
         )
       ]);
@@ -86,7 +111,7 @@ export function createDashboardRouter({ pool }) {
       summary: {
         readBooks: numberOrZero(summary.read_books),
         readingBooks: numberOrZero(summary.reading_books),
-        totalMinutes: numberOrZero(summary.total_minutes),
+        totalDays: numberOrZero(summary.total_days),
         pagesRead: numberOrZero(summary.pages_read),
         averageRating: nullableNumber(summary.average_rating),
         averageDays: nullableNumber(summary.average_days),
@@ -95,12 +120,13 @@ export function createDashboardRouter({ pool }) {
       },
       genres,
       authors,
+      providers: providerResult.rows,
+      formats: formatResult.rows,
       monthly: fillMonthlySeries(monthlyResult.rows),
       books: booksResult.rows.map((book) => ({
         ...book,
         pages: numberOrZero(book.pages),
         rating: numberOrZero(book.rating),
-        readingMinutes: numberOrZero(book.readingMinutes),
         durationDays: nullableNumber(book.durationDays)
       }))
     });
@@ -123,7 +149,7 @@ function fillMonthlySeries(rows) {
       month: key,
       label: formatter.format(date).replace(".", ""),
       books: numberOrZero(value?.books),
-      minutes: numberOrZero(value?.minutes)
+      days: numberOrZero(value?.days)
     });
   }
   return series;

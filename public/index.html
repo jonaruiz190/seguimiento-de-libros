@@ -61,11 +61,17 @@
         </button>
         <div class="user-menu">
           <button id="user-button" class="user-button" type="button" aria-expanded="false">
-            <span id="user-avatar" class="avatar">A</span>
+            <span id="user-avatar" class="avatar">
+              <img id="user-avatar-image" class="is-hidden" alt="">
+              <span id="user-avatar-initial">A</span>
+            </span>
             <span id="user-name" class="user-button__name">Lector</span>
             <span aria-hidden="true">⌄</span>
           </button>
-          <button id="logout-button" class="logout-button is-hidden" type="button">Cerrar sesión</button>
+          <div id="user-dropdown" class="user-dropdown is-hidden">
+            <button id="profile-button" type="button">Editar perfil</button>
+            <button id="logout-button" type="button">Cerrar sesión</button>
+          </div>
         </div>
       </div>
     </header>
@@ -79,6 +85,7 @@
         <button id="close-spotify" class="modal__close" type="button" aria-label="Cerrar">×</button>
       </div>
       <iframe
+        id="spotify-frame"
         title="Reproductor de Spotify"
         src="https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator"
         width="100%"
@@ -102,10 +109,14 @@
             <p>Recomendaciones seleccionadas a partir de tus géneros y lecturas favoritas.</p>
           </div>
           <div class="hero__search">
-            <label class="search-box" for="book-search">
-              <span aria-hidden="true">⌕</span>
-              <input id="book-search" type="search" placeholder="Busca por título, autor o categoría">
-            </label>
+            <form id="hero-catalog-form" class="hero-catalog-form">
+              <label class="search-box" for="hero-catalog-search">
+                <span aria-hidden="true">⌕</span>
+                <input id="hero-catalog-search" type="search" minlength="2"
+                  placeholder="Busca libros reales por título, autor o ISBN" required>
+              </label>
+              <button class="button button--primary" type="submit">Buscar en catálogo</button>
+            </form>
           </div>
         </div>
 
@@ -118,7 +129,7 @@
             <div id="category-filters" class="filters" aria-label="Filtros por categoría"></div>
           </div>
           <div id="recommendations-grid" class="book-grid"></div>
-          <p id="empty-search" class="empty-state is-hidden">No encontramos libros con esa búsqueda.</p>
+          <p id="empty-search" class="empty-state is-hidden">No hay recomendaciones para esta categoría.</p>
         </section>
 
         <section class="reading-banner">
@@ -185,7 +196,7 @@
           <div>
             <p class="eyebrow">Tu historia en números</p>
             <h1>Dashboard de lectura</h1>
-            <p>Descubre tu ritmo, los temas que más eliges y cuánto tiempo dedicas a cada libro.</p>
+            <p>Descubre tu ritmo, los temas que más eliges y cuántos días dedicas a cada libro.</p>
           </div>
           <button id="refresh-dashboard" class="button button--secondary" type="button">
             Actualizar datos
@@ -202,8 +213,8 @@
             </article>
             <article class="metric-card">
               <span>Tiempo total</span>
-              <strong id="metric-total-hours">0 h</strong>
-              <small>Horas registradas</small>
+              <strong id="metric-total-days">0 días</strong>
+              <small>Días calculados con fechas</small>
             </article>
             <article class="metric-card">
               <span>Promedio por libro</span>
@@ -257,13 +268,33 @@
               </div>
               <div id="author-chart" class="ranking-chart"></div>
             </article>
+
+            <article class="dashboard-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Formato preferido</p>
+                  <h2>Físico vs digital</h2>
+                </div>
+              </div>
+              <div id="format-chart" class="ranking-chart"></div>
+            </article>
+
+            <article class="dashboard-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Lectura digital</p>
+                  <h2>Apps más usadas</h2>
+                </div>
+              </div>
+              <div id="provider-chart" class="ranking-chart"></div>
+            </article>
           </div>
 
           <article class="dashboard-panel dashboard-books-panel">
             <div class="panel-heading">
               <div>
                 <p class="eyebrow">Detalle de ritmo</p>
-                <h2>Tiempo por libro</h2>
+                <h2>Días por libro</h2>
               </div>
             </div>
             <div id="dashboard-books" class="dashboard-books"></div>
@@ -330,10 +361,6 @@
           <input id="tracking-finished-at" type="date">
         </label>
       </div>
-      <label for="tracking-hours">Horas dedicadas</label>
-      <input id="tracking-hours" type="number" min="0" max="16666" step="0.25"
-        inputmode="decimal" placeholder="Ejemplo: 12.5">
-      <p class="field-hint">Puedes actualizar este valor mientras avanzas en la lectura.</p>
       <div class="form-grid">
         <label>Aplicación de lectura
           <select id="tracking-provider">
@@ -349,11 +376,8 @@
             placeholder="Ejemplo: 127">
         </label>
       </div>
-      <label for="tracking-url">Enlace para continuar leyendo</label>
-      <input id="tracking-url" type="url" maxlength="2000"
-        placeholder="https://read.amazon.com/...">
       <p class="field-hint">
-        Pega el enlace del libro en Kindle, Apple Books u otra plataforma para abrirlo directamente.
+        El tiempo se calcula automáticamente con la fecha de inicio y finalización.
       </p>
       <button class="button button--primary button--full" type="submit">Guardar seguimiento</button>
     </form>
@@ -408,6 +432,28 @@
       </fieldset>
       <p id="register-error" class="form-error" role="alert"></p>
       <button class="button button--primary button--full" type="submit">Crear mi cuenta</button>
+    </form>
+  </div>
+
+  <div id="profile-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+    <div class="modal__backdrop" data-close-profile></div>
+    <form id="profile-form" class="modal__content modal__content--form">
+      <button class="modal__close" type="button" data-close-profile aria-label="Cerrar">×</button>
+      <p class="eyebrow">Tu cuenta</p>
+      <h2 id="profile-title">Editar perfil</h2>
+      <label for="profile-name">Nombre</label>
+      <input id="profile-name" type="text" maxlength="120" required>
+      <label for="profile-avatar">Foto de perfil</label>
+      <input id="profile-avatar" type="url" maxlength="2000"
+        placeholder="https://ejemplo.com/mi-foto.jpg">
+      <p class="field-hint">Puedes usar una URL de imagen. Si la dejas vacía se mostrará tu inicial.</p>
+      <label for="profile-current-password">Contraseña actual</label>
+      <input id="profile-current-password" type="password" autocomplete="current-password" maxlength="128">
+      <label for="profile-new-password">Nueva contraseña</label>
+      <input id="profile-new-password" type="password" autocomplete="new-password" maxlength="128">
+      <p class="field-hint">Déjala vacía si no quieres cambiar tu contraseña.</p>
+      <p id="profile-error" class="form-error" role="alert"></p>
+      <button class="button button--primary button--full" type="submit">Guardar perfil</button>
     </form>
   </div>
 

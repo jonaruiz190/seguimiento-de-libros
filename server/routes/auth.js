@@ -8,7 +8,7 @@ import {
   sessionCookieOptions,
   verifyPassword
 } from "../security.js";
-import { loginSchema, registerSchema, validate } from "../validation.js";
+import { loginSchema, profileSchema, registerSchema, validate } from "../validation.js";
 
 export function createAuthRouter({ pool, config }) {
   const router = Router();
@@ -30,7 +30,7 @@ export function createAuthRouter({ pool, config }) {
   router.post("/login", loginLimiter, asyncHandler(async (request, response) => {
     const credentials = validate(loginSchema, request.body);
     const result = await pool.query(
-      "SELECT id, name, email, password_hash FROM users WHERE email = $1",
+      "SELECT id, name, email, avatar_url, password_hash FROM users WHERE email = $1",
       [credentials.email]
     );
     const user = result.rows[0];
@@ -54,7 +54,7 @@ export function createAuthRouter({ pool, config }) {
       const result = await client.query(
         `INSERT INTO users (name, email, password_hash)
          VALUES ($1, $2, $3)
-         RETURNING id, name, email`,
+         RETURNING id, name, email, avatar_url`,
         [registration.name, registration.email, passwordHash]
       );
       user = result.rows[0];
@@ -83,6 +83,49 @@ export function createAuthRouter({ pool, config }) {
 
   router.get("/me", requireAuth(pool), asyncHandler(async (request, response) => {
     response.json({ user: await getPublicUser(pool, request.user) });
+  }));
+
+  router.put("/profile", requireAuth(pool), asyncHandler(async (request, response) => {
+    const profile = validate(profileSchema, request.body);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      if (profile.newPassword) {
+        const current = await client.query(
+          "SELECT password_hash FROM users WHERE id = $1",
+          [request.user.id]
+        );
+        if (!await verifyPassword(profile.currentPassword, current.rows[0].password_hash)) {
+          const error = new Error("La contraseña actual no es correcta.");
+          error.status = 401;
+          throw error;
+        }
+        const passwordHash = await hashPassword(profile.newPassword);
+        await client.query(
+          `UPDATE users
+           SET name = $1, avatar_url = $2, password_hash = $3, updated_at = NOW()
+           WHERE id = $4`,
+          [profile.name, profile.avatarUrl, passwordHash, request.user.id]
+        );
+      } else {
+        await client.query(
+          "UPDATE users SET name = $1, avatar_url = $2, updated_at = NOW() WHERE id = $3",
+          [profile.name, profile.avatarUrl, request.user.id]
+        );
+      }
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    const user = await pool.query(
+      "SELECT id, name, email, avatar_url FROM users WHERE id = $1",
+      [request.user.id]
+    );
+    response.json({ user: await getPublicUser(pool, user.rows[0]) });
   }));
 
   router.post("/logout", requireAuth(pool), asyncHandler(async (request, response) => {
@@ -119,6 +162,7 @@ async function getPublicUser(pool, user) {
     id: user.id,
     name: user.name,
     email: user.email,
+    avatarUrl: user.avatar_url || null,
     preferences: preferences.rows.map((row) => row.category)
   };
 }

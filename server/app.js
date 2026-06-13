@@ -31,6 +31,7 @@ export function createApp({ pool, config }) {
         imgSrc: [
           "'self'",
           "data:",
+          "https:",
           "https://covers.openlibrary.org"
         ],
         scriptSrc: ["'self'"],

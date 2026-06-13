@@ -25,9 +25,7 @@ export const trackingSchema = z.object({
   format: z.enum(["Físico", "Digital"]),
   startedAt: z.iso.date().nullable(),
   finishedAt: z.iso.date().nullable(),
-  readingMinutes: z.number().int().min(0).max(1000000),
   readingProvider: z.enum(["Kindle", "Apple Books", "Google Books", "Otro"]).nullable(),
-  readingUrl: z.url().max(2000).nullable(),
   currentPage: z.number().int().min(1).max(1000000).nullable()
 }).strict().superRefine((item, context) => {
   if (item.startedAt && item.finishedAt && item.finishedAt < item.startedAt) {
@@ -35,6 +33,34 @@ export const trackingSchema = z.object({
       code: "custom",
       path: ["finishedAt"],
       message: "La fecha de finalización no puede ser anterior al inicio."
+    });
+  }
+});
+
+const strongPassword = z.string()
+  .min(12, "La contraseña debe tener al menos 12 caracteres.")
+  .max(128)
+  .regex(/[a-z]/, "Debe incluir una letra minúscula.")
+  .regex(/[A-Z]/, "Debe incluir una letra mayúscula.")
+  .regex(/[0-9]/, "Debe incluir un número.");
+
+export const profileSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  avatarUrl: z.union([
+    z.url().max(2000).refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
+      message: "La foto debe ser una URL http o https."
+    }),
+    z.literal("")
+  ]).nullable()
+    .transform((value) => value || null),
+  currentPassword: z.string().max(128).optional().default(""),
+  newPassword: z.union([strongPassword, z.literal("")]).optional().default("")
+}).strict().superRefine((item, context) => {
+  if (item.newPassword && !item.currentPassword) {
+    context.addIssue({
+      code: "custom",
+      path: ["currentPassword"],
+      message: "Ingresa tu contraseña actual para cambiarla."
     });
   }
 });

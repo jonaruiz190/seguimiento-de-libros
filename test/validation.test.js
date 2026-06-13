@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   loginSchema,
+  profileSchema,
   registerSchema,
   trackingSchema,
   validate
@@ -13,6 +14,30 @@ test("normaliza el correo de login", () => {
     password: "libros123"
   });
   assert.equal(result.email, "ana@libros.com");
+});
+
+test("valida cambios de perfil y contraseña", () => {
+  const profile = validate(profileSchema, {
+    name: "Ana Torres",
+    avatarUrl: "https://example.com/avatar.jpg",
+    currentPassword: "",
+    newPassword: ""
+  });
+  assert.equal(profile.avatarUrl, "https://example.com/avatar.jpg");
+
+  assert.throws(() => validate(profileSchema, {
+    name: "Ana Torres",
+    avatarUrl: null,
+    currentPassword: "",
+    newPassword: "NuevaClave2026"
+  }), /no son válidos/);
+
+  assert.throws(() => validate(profileSchema, {
+    name: "Ana Torres",
+    avatarUrl: "javascript:alert(1)",
+    currentPassword: "",
+    newPassword: ""
+  }), /no son válidos/);
 });
 
 test("exige contraseñas robustas para nuevos usuarios", () => {
@@ -41,9 +66,7 @@ test("rechaza estados y puntuaciones inválidos", () => {
     format: "Digital",
     startedAt: null,
     finishedAt: null,
-    readingMinutes: 0,
     readingProvider: null,
-    readingUrl: null,
     currentPage: null
   }), /no son válidos/);
 });
@@ -57,9 +80,7 @@ test("rechaza una finalización anterior al inicio", () => {
     format: "Digital",
     startedAt: "2026-06-10",
     finishedAt: "2026-06-01",
-    readingMinutes: 600,
     readingProvider: "Kindle",
-    readingUrl: "https://read.amazon.com/",
     currentPage: 120
   }), /no son válidos/);
 });

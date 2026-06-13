@@ -5,10 +5,11 @@ const state = {
   dashboard: null,
   integrations: null,
   category: "Todos",
-  search: "",
   trackingSearch: "",
   statusFilter: "all"
 };
+
+const spotifyEmbedUrl = "https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator";
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -32,11 +33,14 @@ function bindEvents() {
   $("#register-form").addEventListener("submit", handleRegister);
   $("#open-register-button").addEventListener("click", openRegisterModal);
   $("#logout-button").addEventListener("click", logout);
+  $("#profile-button").addEventListener("click", openProfileModal);
+  $("#profile-form").addEventListener("submit", saveProfile);
   $("#user-button").addEventListener("click", toggleUserMenu);
-  $("#book-search").addEventListener("input", (event) => {
-    state.search = event.target.value.trim().toLowerCase();
-    renderBooks();
+  $("#user-avatar-image").addEventListener("error", () => {
+    $("#user-avatar-image").classList.add("is-hidden");
+    $("#user-avatar-initial").classList.remove("is-hidden");
   });
+  $("#hero-catalog-form").addEventListener("submit", searchHeroCatalog);
   $("#tracking-search").addEventListener("input", (event) => {
     state.trackingSearch = event.target.value.trim().toLowerCase();
     renderTracking();
@@ -73,6 +77,9 @@ function bindEvents() {
   $$("[data-close-register]").forEach((element) => {
     element.addEventListener("click", closeRegisterModal);
   });
+  $$("[data-close-profile]").forEach((element) => {
+    element.addEventListener("click", closeProfileModal);
+  });
   $$("[data-close-catalog]").forEach((element) => {
     element.addEventListener("click", closeCatalogModal);
   });
@@ -85,6 +92,7 @@ function bindEvents() {
       closeBookModal();
       closeTrackingModal();
       closeRegisterModal();
+      closeProfileModal();
       closeCatalogModal();
       closeSpotifyPanel();
     }
@@ -200,8 +208,7 @@ async function enterApp(user) {
 
   $("#login-screen").classList.add("is-hidden");
   $("#app").classList.remove("is-hidden");
-  $("#user-name").textContent = user.name;
-  $("#user-avatar").textContent = user.name.charAt(0).toUpperCase();
+  renderUserIdentity();
   $("#welcome-message").textContent = `${greeting()}, ${user.name.split(" ")[0]}`;
   populateBookSelect();
   renderCategoryFilters();
@@ -230,21 +237,38 @@ function resetToLogin() {
   state.integrations = null;
   $("#app").classList.add("is-hidden");
   $("#login-screen").classList.remove("is-hidden");
-  $("#logout-button").classList.add("is-hidden");
+  $("#user-dropdown").classList.add("is-hidden");
+  stopSpotifyPlayback();
   $("#login-form").reset();
   $("#email").focus();
 }
 
 function toggleUserMenu() {
-  const menu = $("#logout-button");
+  const menu = $("#user-dropdown");
   const expanded = !menu.classList.contains("is-hidden");
   menu.classList.toggle("is-hidden", expanded);
   $("#user-button").setAttribute("aria-expanded", String(!expanded));
 }
 
+function renderUserIdentity() {
+  $("#user-name").textContent = state.user.name;
+  const image = $("#user-avatar-image");
+  const initial = $("#user-avatar-initial");
+  initial.textContent = state.user.name.charAt(0).toUpperCase();
+  initial.classList.remove("is-hidden");
+  image.classList.add("is-hidden");
+  image.removeAttribute("src");
+  if (state.user.avatarUrl) {
+    image.src = safeImageUrl(state.user.avatarUrl);
+    image.classList.remove("is-hidden");
+    initial.classList.add("is-hidden");
+  }
+}
+
 function toggleSpotifyPanel() {
   const panel = $("#spotify-panel");
   const opening = panel.classList.contains("is-hidden");
+  if (opening) ensureSpotifyPlayback();
   panel.classList.toggle("is-hidden", !opening);
   $("#spotify-button").setAttribute("aria-expanded", String(opening));
 }
@@ -252,6 +276,16 @@ function toggleSpotifyPanel() {
 function closeSpotifyPanel() {
   $("#spotify-panel").classList.add("is-hidden");
   $("#spotify-button").setAttribute("aria-expanded", "false");
+}
+
+function ensureSpotifyPlayback() {
+  const frame = $("#spotify-frame");
+  if (!frame.src) frame.src = spotifyEmbedUrl;
+}
+
+function stopSpotifyPlayback() {
+  closeSpotifyPanel();
+  $("#spotify-frame").src = "";
 }
 
 function renderIntegrationStatus() {
@@ -339,10 +373,6 @@ function renderBooks() {
   const preferences = state.user?.preferences || [];
   const filtered = state.books
     .filter((book) => state.category === "Todos" || book.categories.includes(state.category))
-    .filter((book) => {
-      const haystack = `${book.title} ${book.author} ${book.categories.join(" ")}`.toLowerCase();
-      return haystack.includes(state.search);
-    })
     .sort((a, b) => {
       const aMatch = a.categories.some((category) => preferences.includes(category)) ? 1 : 0;
       const bMatch = b.categories.some((category) => preferences.includes(category)) ? 1 : 0;
@@ -413,9 +443,7 @@ function openBookModal(bookId) {
             ${readingLinks.map((link, index) => `
               <a class="button ${index === 0 ? "button--primary" : "button--secondary"}"
                 href="${safeExternalUrl(link.url)}" target="_blank" rel="noopener noreferrer">
-                ${escapeHtml(index === 0 && tracked?.readingUrl
-                  ? "Continuar leyendo"
-                  : `Abrir en ${link.label}`)}
+                ${escapeHtml(`Abrir en ${link.label}`)}
               </a>
             `).join("")}
           </div>
@@ -438,9 +466,6 @@ function openBookModal(bookId) {
 
 function getReadingLinks(book, tracked) {
   const links = [];
-  if (tracked?.readingUrl) {
-    links.push({ label: tracked.readingProvider || "mi aplicación", url: tracked.readingUrl });
-  }
   if (book.appleBooksUrl) links.push({ label: "Apple Books", url: book.appleBooksUrl });
   if (book.kindleUrl) links.push({ label: "Kindle", url: book.kindleUrl });
   if (book.previewUrl) links.push({ label: "Google Books", url: book.previewUrl });
@@ -473,11 +498,7 @@ function openTrackingModal(trackingId = null, preferredBookId = null) {
   $("#tracking-comment").value = item?.comment || "";
   $("#tracking-started-at").value = dateInputValue(item?.startedAt);
   $("#tracking-finished-at").value = dateInputValue(item?.finishedAt);
-  $("#tracking-hours").value = item?.readingMinutes
-    ? formatDecimal(item.readingMinutes / 60)
-    : "";
   $("#tracking-provider").value = item?.readingProvider || "";
-  $("#tracking-url").value = item?.readingUrl || "";
   $("#tracking-current-page").value = item?.currentPage || "";
   $("#tracking-modal-title").textContent = item ? "Editar seguimiento" : "Añadir a mi seguimiento";
   if (!item) applyDateDefaults();
@@ -491,10 +512,20 @@ function closeTrackingModal() {
   restoreBodyScroll();
 }
 
+async function searchHeroCatalog(event) {
+  event.preventDefault();
+  const query = $("#hero-catalog-search").value.trim();
+  if (!query) return;
+  openCatalogModal(query);
+  await runCatalogSearch(query);
+  $("#hero-catalog-search").value = "";
+}
+
 function restoreBodyScroll() {
   if ($("#book-modal").classList.contains("is-hidden")
       && $("#tracking-modal").classList.contains("is-hidden")
       && $("#register-modal").classList.contains("is-hidden")
+      && $("#profile-modal").classList.contains("is-hidden")
       && $("#catalog-modal").classList.contains("is-hidden")) {
     document.body.style.overflow = "";
   }
@@ -511,9 +542,7 @@ async function saveTracking(event) {
     format: $("#tracking-format").value,
     startedAt: $("#tracking-started-at").value || null,
     finishedAt: $("#tracking-finished-at").value || null,
-    readingMinutes: Math.round((Number($("#tracking-hours").value) || 0) * 60),
     readingProvider: $("#tracking-provider").value || null,
-    readingUrl: $("#tracking-url").value.trim() || null,
     currentPage: Number($("#tracking-current-page").value) || null
   };
 
@@ -536,9 +565,10 @@ async function saveTracking(event) {
   }
 }
 
-function openCatalogModal() {
+function openCatalogModal(initialQuery = "") {
   $("#catalog-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
+  if (initialQuery) $("#catalog-search").value = initialQuery;
   $("#catalog-search").focus();
 }
 
@@ -547,9 +577,58 @@ function closeCatalogModal() {
   restoreBodyScroll();
 }
 
+function openProfileModal() {
+  $("#user-dropdown").classList.add("is-hidden");
+  $("#profile-form").reset();
+  $("#profile-name").value = state.user.name;
+  $("#profile-avatar").value = state.user.avatarUrl || "";
+  $("#profile-error").textContent = "";
+  $("#profile-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  $("#profile-name").focus();
+}
+
+function closeProfileModal() {
+  $("#profile-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const errorElement = $("#profile-error");
+  const submitButton = $("#profile-form button[type='submit']");
+  errorElement.textContent = "";
+  submitButton.disabled = true;
+
+  try {
+    const result = await api("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify({
+        name: $("#profile-name").value.trim(),
+        avatarUrl: $("#profile-avatar").value.trim() || null,
+        currentPassword: $("#profile-current-password").value,
+        newPassword: $("#profile-new-password").value
+      })
+    });
+    state.user = result.user;
+    renderUserIdentity();
+    $("#welcome-message").textContent = `${greeting()}, ${state.user.name.split(" ")[0]}`;
+    closeProfileModal();
+    showToast("Perfil actualizado.");
+  } catch (error) {
+    errorElement.textContent = error.message;
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
 async function searchCatalog(event) {
   event.preventDefault();
   const query = $("#catalog-search").value.trim();
+  await runCatalogSearch(query);
+}
+
+async function runCatalogSearch(query) {
   const message = $("#catalog-message");
   const submit = $("#catalog-search-form button[type='submit']");
   message.textContent = "Buscando en Open Library...";
@@ -607,6 +686,8 @@ async function importCatalogBook(button) {
     const imported = findBook(result.id);
     if (imported) {
       closeCatalogModal();
+      $("#catalog-search").value = "";
+      $("#catalog-results").innerHTML = "";
       openBookModal(imported.id);
     }
   } catch (error) {
@@ -729,7 +810,7 @@ function renderDashboard() {
 
   $("#metric-read-books").textContent = summary.readBooks;
   $("#metric-reading-books").textContent = `${summary.readingBooks} leyendo actualmente`;
-  $("#metric-total-hours").textContent = formatHours(summary.totalMinutes);
+  $("#metric-total-days").textContent = `${numberFormatter.format(summary.totalDays)} días`;
   $("#metric-average-days").textContent = summary.averageDays === null
     ? "—"
     : `${formatDecimal(summary.averageDays)} días`;
@@ -743,6 +824,8 @@ function renderDashboard() {
   renderMonthlyChart(dashboard.monthly);
   renderRankingChart("#genre-chart", dashboard.genres);
   renderRankingChart("#author-chart", dashboard.authors);
+  renderRankingChart("#format-chart", dashboard.formats);
+  renderRankingChart("#provider-chart", dashboard.providers);
   renderDashboardBooks(dashboard.books);
 
   $("#dashboard-loading").classList.add("is-hidden");
@@ -754,7 +837,7 @@ function renderMonthlyChart(monthly) {
   $("#monthly-chart").innerHTML = monthly.map((item) => {
     const height = item.books === 0 ? 2 : Math.max(12, (item.books / max) * 92);
     return `
-      <div class="month-column" title="${item.books} libros · ${formatHours(item.minutes)}">
+      <div class="month-column" title="${item.books} libros · ${item.days} días">
         <div class="month-column__track">
           <div class="month-column__bar" style="height: ${height}%">
             ${item.books ? `<span>${item.books}</span>` : ""}
@@ -798,7 +881,7 @@ function renderDashboardBooks(books) {
 
   container.innerHTML = `
     <div class="dashboard-book-row dashboard-book-row--header">
-      <span>Libro</span><span>Inicio</span><span>Final</span><span>Duración</span><span>Horas</span>
+      <span>Libro</span><span>Inicio</span><span>Final</span><span>Duración</span><span>App</span>
     </div>
     ${books.map((book) => `
       <div class="dashboard-book-row">
@@ -812,7 +895,7 @@ function renderDashboardBooks(books) {
         <span>${formatDate(book.startedAt)}</span>
         <span>${formatDate(book.finishedAt)}</span>
         <span>${book.durationDays === null ? "Sin fechas" : `${book.durationDays} días`}</span>
-        <span>${formatHours(book.readingMinutes)}</span>
+        <span>${escapeHtml(book.readingProvider || book.format)}</span>
       </div>
     `).join("")}
   `;
@@ -830,11 +913,6 @@ const dateFormatter = new Intl.DateTimeFormat("es", {
   year: "numeric",
   timeZone: "UTC"
 });
-
-function formatHours(minutes) {
-  const hours = Number(minutes) / 60;
-  return `${formatDecimal(hours)} h`;
-}
 
 function formatDecimal(value) {
   return Number(value).toLocaleString("es", { maximumFractionDigits: 1 });

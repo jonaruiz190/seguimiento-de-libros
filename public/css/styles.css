@@ -443,23 +443,48 @@ textarea:focus {
   display: grid;
   width: 36px;
   height: 36px;
+  overflow: hidden;
   place-items: center;
   color: white;
   background: var(--green);
   border-radius: 50%;
 }
 
-.logout-button {
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.user-dropdown {
   position: absolute;
   top: 48px;
   right: 0;
-  width: 150px;
-  padding: 11px;
+  display: grid;
+  width: 170px;
+  overflow: hidden;
   background: var(--white);
   border: 1px solid var(--line);
   border-radius: 7px;
   box-shadow: var(--shadow);
+}
+
+.user-dropdown button {
+  padding: 12px;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
   cursor: pointer;
+}
+
+.user-dropdown button:last-child {
+  border-bottom: 0;
+}
+
+.user-dropdown button:hover {
+  color: var(--green);
+  background: var(--sage);
 }
 
 main {
@@ -516,6 +541,15 @@ main {
   padding: 9px 3px;
   border: 0;
   box-shadow: none;
+}
+
+.hero-catalog-form {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-catalog-form .button {
+  justify-self: end;
 }
 
 .content-section {
@@ -1404,9 +1438,18 @@ tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .hero__search {
-    max-width: 600px;
-  }
+.hero__search {
+  max-width: 600px;
+}
+
+.hero-catalog-form {
+  display: grid;
+  gap: 12px;
+}
+
+.hero-catalog-form .button {
+  justify-self: end;
+}
 
   .book-detail {
     grid-template-columns: 260px 1fr;

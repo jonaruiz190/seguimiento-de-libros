@@ -10,8 +10,7 @@ export function createTrackingRouter({ pool }) {
     const result = await pool.query(
       `SELECT id, book_id AS "bookId", status, rating, comment, format,
               started_at AS "startedAt", finished_at AS "finishedAt",
-              reading_minutes AS "readingMinutes",
-              reading_provider AS "readingProvider", reading_url AS "readingUrl",
+              reading_provider AS "readingProvider",
               current_page AS "currentPage"
        FROM tracking
        WHERE user_id = $1
@@ -27,13 +26,11 @@ export function createTrackingRouter({ pool }) {
       const result = await pool.query(
         `INSERT INTO tracking
           (user_id, book_id, status, rating, comment, format,
-           started_at, finished_at, reading_minutes, reading_provider, reading_url,
-           current_page)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+           started_at, finished_at, reading_minutes, reading_provider, current_page)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10)
          RETURNING id, book_id AS "bookId", status, rating, comment, format,
                    started_at AS "startedAt", finished_at AS "finishedAt",
-                   reading_minutes AS "readingMinutes",
-                   reading_provider AS "readingProvider", reading_url AS "readingUrl",
+                   reading_provider AS "readingProvider",
                    current_page AS "currentPage"`,
         [
           request.user.id,
@@ -44,9 +41,7 @@ export function createTrackingRouter({ pool }) {
           item.format,
           item.startedAt,
           item.finishedAt,
-          item.readingMinutes,
           item.readingProvider,
-          item.readingUrl,
           item.currentPage
         ]
       );
@@ -68,14 +63,13 @@ export function createTrackingRouter({ pool }) {
     const result = await pool.query(
       `UPDATE tracking
        SET status = $1, rating = $2, comment = $3, format = $4,
-           started_at = $5, finished_at = $6, reading_minutes = $7,
-           reading_provider = $8, reading_url = $9, current_page = $10,
+           started_at = $5, finished_at = $6,
+           reading_provider = $7, current_page = $8,
            updated_at = NOW()
-       WHERE id = $11 AND user_id = $12
+       WHERE id = $9 AND user_id = $10
        RETURNING id, book_id AS "bookId", status, rating, comment, format,
                  started_at AS "startedAt", finished_at AS "finishedAt",
-                 reading_minutes AS "readingMinutes",
-                 reading_provider AS "readingProvider", reading_url AS "readingUrl",
+                 reading_provider AS "readingProvider",
                  current_page AS "currentPage"`,
       [
         item.status,
@@ -84,9 +78,7 @@ export function createTrackingRouter({ pool }) {
         item.format,
         item.startedAt,
         item.finishedAt,
-        item.readingMinutes,
         item.readingProvider,
-        item.readingUrl,
         item.currentPage,
         request.params.id,
         request.user.id

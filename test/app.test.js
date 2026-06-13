@@ -111,7 +111,7 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
           rows: [{
             read_books: 3,
             reading_books: 1,
-            total_minutes: 1500,
+            total_days: 30,
             pages_read: 1200,
             average_rating: "4.5",
             average_days: "12.5"
@@ -125,7 +125,13 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
         return { rowCount: 1, rows: [{ label: "Jane Austen", value: 2 }] };
       }
       if (sql.includes("TO_CHAR")) {
-        return { rowCount: 1, rows: [{ month: "2026-06", books: 2, minutes: 900 }] };
+        return { rowCount: 1, rows: [{ month: "2026-06", books: 2, days: 18 }] };
+      }
+      if (sql.includes("GROUP BY COALESCE")) {
+        return { rowCount: 1, rows: [{ label: "Kindle", value: 2 }] };
+      }
+      if (sql.includes("GROUP BY t.format")) {
+        return { rowCount: 1, rows: [{ label: "Digital", value: 2 }] };
       }
       if (sql.includes("CASE")) {
         return {
@@ -139,7 +145,8 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
             rating: 5,
             startedAt: "2026-06-01",
             finishedAt: "2026-06-10",
-            readingMinutes: 600,
+            format: "Digital",
+            readingProvider: "Kindle",
             durationDays: 10
           }]
         };
@@ -153,9 +160,10 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
     .set("Cookie", "sid=session-token");
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.summary.totalMinutes, 1500);
+  assert.equal(response.body.summary.totalDays, 30);
   assert.equal(response.body.summary.topGenre, "Fantasía");
   assert.equal(response.body.summary.topAuthor, "Jane Austen");
   assert.equal(response.body.monthly.length, 12);
   assert.equal(response.body.books[0].durationDays, 10);
+  assert.equal(response.body.providers[0].label, "Kindle");
 });
