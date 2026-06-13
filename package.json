@@ -1,0 +1,29 @@
+{
+  "name": "seguimiento-de-libros",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aplicación web para descubrir libros y llevar un seguimiento personal de lectura.",
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "node --watch server/server.js",
+    "start": "node server/server.js",
+    "db:migrate": "node server/scripts/migrate.js",
+    "db:seed": "node server/scripts/seed.js",
+    "test": "node --test",
+    "check": "node --check server/server.js && node --check server/app.js && node --check public/js/app.js"
+  },
+  "dependencies": {
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "express-rate-limit": "8.5.2",
+    "helmet": "8.2.0",
+    "pg": "8.21.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "supertest": "7.2.2"
+  }
+}

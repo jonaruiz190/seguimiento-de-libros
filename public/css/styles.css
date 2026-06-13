@@ -200,6 +200,16 @@ textarea:focus {
   background: var(--green-dark);
 }
 
+.button--secondary {
+  color: var(--green);
+  background: transparent;
+  border: 1px solid var(--green);
+}
+
+.button--secondary:hover {
+  background: var(--sage);
+}
+
 .button--full {
   width: 100%;
   margin-top: 10px;
@@ -832,6 +842,47 @@ tr:last-child td {
   margin-bottom: 16px;
 }
 
+.field-hint {
+  margin: -4px 0 6px;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.preference-fieldset {
+  padding: 14px;
+  margin: 5px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.preference-fieldset legend {
+  padding: 0 5px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.preference-fieldset legend span {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.preference-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.preference-grid label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 500;
+}
+
+.preference-grid input {
+  width: auto;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1041,6 +1092,10 @@ tr:last-child td {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preference-grid {
     grid-template-columns: 1fr;
   }
 

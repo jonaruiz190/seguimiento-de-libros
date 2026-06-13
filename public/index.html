@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
   <div id="login-screen" class="login-screen">
@@ -29,6 +29,9 @@
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
         <p id="login-error" class="form-error" role="alert"></p>
         <button class="button button--primary button--full" type="submit">Entrar a mi biblioteca</button>
+        <button id="open-register-button" class="button button--secondary button--full" type="button">
+          Crear una cuenta
+        </button>
         <p class="demo-hint">Prueba: <strong>ana@libros.com</strong> / <strong>libros123</strong></p>
       </form>
     </section>
@@ -197,7 +200,37 @@
     </form>
   </div>
 
+  <div id="register-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="register-title">
+    <div class="modal__backdrop" data-close-register></div>
+    <form id="register-form" class="modal__content modal__content--form">
+      <button class="modal__close" type="button" data-close-register aria-label="Cerrar">×</button>
+      <p class="eyebrow">Comienza tu biblioteca</p>
+      <h2 id="register-title">Crear una cuenta</h2>
+      <label for="register-name">Nombre</label>
+      <input id="register-name" type="text" autocomplete="name" maxlength="120" required>
+      <label for="register-email">Correo electrónico</label>
+      <input id="register-email" type="email" autocomplete="email" maxlength="254" required>
+      <label for="register-password">Contraseña</label>
+      <input id="register-password" type="password" autocomplete="new-password"
+        minlength="12" maxlength="128" required>
+      <p class="field-hint">Mínimo 12 caracteres, con mayúscula, minúscula y número.</p>
+      <fieldset class="preference-fieldset">
+        <legend>¿Qué te gusta leer? <span>(hasta 5)</span></legend>
+        <div class="preference-grid">
+          <label><input type="checkbox" name="preference" value="Fantasía"> Fantasía</label>
+          <label><input type="checkbox" name="preference" value="Ciencia ficción"> Ciencia ficción</label>
+          <label><input type="checkbox" name="preference" value="Clásicos"> Clásicos</label>
+          <label><input type="checkbox" name="preference" value="Romance"> Romance</label>
+          <label><input type="checkbox" name="preference" value="Historia"> Historia</label>
+          <label><input type="checkbox" name="preference" value="Desarrollo personal"> Desarrollo personal</label>
+        </div>
+      </fieldset>
+      <p id="register-error" class="form-error" role="alert"></p>
+      <button class="button button--primary button--full" type="submit">Crear mi cuenta</button>
+    </form>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
-  <script src="js/app.js"></script>
+  <script src="/js/app.js"></script>
 </body>
 </html>

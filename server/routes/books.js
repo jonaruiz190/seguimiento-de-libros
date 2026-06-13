@@ -1,0 +1,26 @@
+import { Router } from "express";
+import { asyncHandler, requireAuth } from "../middleware.js";
+
+export function createBooksRouter({ pool }) {
+  const router = Router();
+  router.use(requireAuth(pool));
+
+  router.get("/", asyncHandler(async (request, response) => {
+    const result = await pool.query(
+      `SELECT b.id, b.title, b.author, b.publication_year AS year, b.pages,
+              b.rating::float, b.cover_url AS cover, b.synopsis,
+              COALESCE(
+                ARRAY_AGG(bc.category ORDER BY bc.category)
+                FILTER (WHERE bc.category IS NOT NULL),
+                '{}'
+              ) AS categories
+       FROM books b
+       LEFT JOIN book_categories bc ON bc.book_id = b.id
+       GROUP BY b.id
+       ORDER BY b.rating DESC, b.title`
+    );
+    response.json({ books: result.rows });
+  }));
+
+  return router;
+}
