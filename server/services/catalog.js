@@ -14,7 +14,12 @@ function cleanCategories(values = []) {
   return [...new Set(values
     .filter((value) => typeof value === "string")
     .map((value) => value.trim())
-    .filter((value) => value && value.length <= 100))]
+    .filter((value) =>
+      value &&
+      value.length <= 60 &&
+      !value.includes("=") &&
+      !value.includes(":")
+    ))]
     .slice(0, 6);
 }
 
@@ -27,6 +32,18 @@ function coverUrl(coverId) {
   return coverId
     ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`
     : "/covers/fallback.svg";
+}
+
+function cleanDescription(value) {
+  if (!value) return null;
+  return String(value)
+    .replace(/^\[[^\]]+\]\[\d+\]:\s*/i, "")
+    .replace(/^\[\d+\]:\s+\S+$/gm, "")
+    .replace(/^>\s?/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\s{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 5000);
 }
 
 export function normalizeOpenLibraryBook(document) {
@@ -91,8 +108,8 @@ export async function searchOpenLibrary(query, limit = 12) {
 async function fetchWorkDescription(sourceId) {
   try {
     const work = await fetchJson(`${OPEN_LIBRARY_BOOK}/works/${encodeURIComponent(sourceId)}.json`);
-    if (typeof work.description === "string") return work.description;
-    return work.description?.value || null;
+    if (typeof work.description === "string") return cleanDescription(work.description);
+    return cleanDescription(work.description?.value);
   } catch {
     return null;
   }

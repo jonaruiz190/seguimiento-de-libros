@@ -10,7 +10,7 @@ test("normaliza resultados de Open Library para el catálogo local", () => {
     first_publish_year: 2020,
     number_of_pages_median: 320,
     isbn: ["1234567890", "9781234567890"],
-    subject: ["Fantasía", "Fantasía", "Aventura"],
+    subject: ["Fantasía", "Fantasía", "Aventura", "award:hugo=1970"],
     cover_i: 42,
     language: ["spa"],
     publisher: ["Editorial"]
