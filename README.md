@@ -20,6 +20,7 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 - Seguimiento con estado, puntuación, comentarios y formato.
 - Creación, edición y eliminación de registros.
 - Vista detallada de cada libro.
+- Portadas servidas mediante proxy propio con caché y respaldo SVG.
 - Persistencia por usuario en la base de datos.
 - Diseño responsive.
 

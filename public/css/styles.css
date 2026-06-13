@@ -237,8 +237,8 @@ textarea:focus {
   padding: 64px;
   overflow: hidden;
   background:
-    linear-gradient(180deg, rgba(16, 42, 32, 0.05), rgba(16, 42, 32, 0.65)),
-    url("https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=1600&q=85") center/cover;
+    radial-gradient(circle at 70% 18%, rgba(217, 200, 136, 0.22), transparent 25%),
+    linear-gradient(145deg, #2f6b52 0%, #173e2f 54%, #0f281f 100%);
 }
 
 .login-art::before {
@@ -246,6 +246,20 @@ textarea:focus {
   inset: 0;
   background: linear-gradient(135deg, rgba(31, 92, 69, 0.15), transparent 55%);
   content: "";
+}
+
+.login-art::after {
+  position: absolute;
+  top: 8%;
+  right: 9%;
+  width: min(65%, 560px);
+  height: 70%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    -38px 38px 0 rgba(217, 200, 136, 0.08),
+    -76px 76px 0 rgba(255, 255, 255, 0.05);
+  content: "";
+  transform: rotate(4deg);
 }
 
 .quote-card {
@@ -381,8 +395,8 @@ main {
   gap: 50px;
   color: white;
   background:
-    linear-gradient(90deg, rgba(17, 52, 39, 0.96), rgba(17, 52, 39, 0.73) 55%, rgba(17, 52, 39, 0.42)),
-    url("https://images.unsplash.com/photo-1526243741027-444d633d7365?auto=format&fit=crop&w=1800&q=80") center/cover;
+    radial-gradient(circle at 85% 25%, rgba(217, 200, 136, 0.2), transparent 22%),
+    linear-gradient(110deg, #113427 0%, #1f5c45 62%, #39785d 100%);
 }
 
 .hero .eyebrow,

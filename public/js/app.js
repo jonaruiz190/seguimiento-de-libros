@@ -509,8 +509,9 @@ function escapeHtml(value) {
 
 function safeImageUrl(value) {
   try {
-    const url = new URL(value);
-    return url.protocol === "https:" ? escapeHtml(url.href) : "";
+    const url = new URL(value, window.location.origin);
+    const allowed = url.origin === window.location.origin || url.protocol === "https:";
+    return allowed ? escapeHtml(url.href) : "";
   } catch {
     return "";
   }

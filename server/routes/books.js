@@ -8,7 +8,7 @@ export function createBooksRouter({ pool }) {
   router.get("/", asyncHandler(async (request, response) => {
     const result = await pool.query(
       `SELECT b.id, b.title, b.author, b.publication_year AS year, b.pages,
-              b.rating::float, b.cover_url AS cover, b.synopsis,
+              b.rating::float, '/media/books/' || b.id AS cover, b.synopsis,
               COALESCE(
                 ARRAY_AGG(bc.category ORDER BY bc.category)
                 FILTER (WHERE bc.category IS NOT NULL),
