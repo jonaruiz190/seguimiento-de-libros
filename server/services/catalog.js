@@ -1,6 +1,7 @@
 const OPEN_LIBRARY_SEARCH = "https://openlibrary.org/search.json";
 const OPEN_LIBRARY_BOOK = "https://openlibrary.org";
 const APPLE_SEARCH = "https://itunes.apple.com/search";
+const GOOGLE_BOOKS_SEARCH = "https://www.googleapis.com/books/v1/volumes";
 
 function first(values, fallback = null) {
   return Array.isArray(values) && values.length ? values[0] : fallback;
@@ -137,6 +138,30 @@ async function findAppleBooksUrl(book) {
   }
 }
 
+async function findGoogleBooksMetadata(book) {
+  try {
+    const url = new URL(GOOGLE_BOOKS_SEARCH);
+    url.searchParams.set(
+      "q",
+      book.isbn13 ? `isbn:${book.isbn13}` : `intitle:${book.title} inauthor:${book.author}`
+    );
+    url.searchParams.set("maxResults", "1");
+    url.searchParams.set(
+      "fields",
+      "items(volumeInfo(description,previewLink,infoLink,publishedDate,language))"
+    );
+    const payload = await fetchJson(url);
+    const info = payload.items?.[0]?.volumeInfo;
+    return {
+      description: cleanDescription(info?.description),
+      previewUrl: info?.previewLink || info?.infoLink || null,
+      language: info?.language || null
+    };
+  } catch {
+    return { description: null, previewUrl: null, language: null };
+  }
+}
+
 export async function getOpenLibraryBook(sourceId) {
   const matches = await searchOpenLibrary(`key:/works/${sourceId}`, 1);
   const book = matches.find((item) => item.sourceId === sourceId) || matches[0];
@@ -145,14 +170,17 @@ export async function getOpenLibraryBook(sourceId) {
     error.status = 404;
     throw error;
   }
-  const [description, appleBooksUrl] = await Promise.all([
+  const [description, appleBooksUrl, googleBooks] = await Promise.all([
     fetchWorkDescription(sourceId),
-    findAppleBooksUrl(book)
+    findAppleBooksUrl(book),
+    findGoogleBooksMetadata(book)
   ]);
   return {
     ...book,
-    synopsis: description || book.synopsis,
-    appleBooksUrl
+    synopsis: description || googleBooks.description || book.synopsis,
+    appleBooksUrl,
+    previewUrl: googleBooks.previewUrl || book.previewUrl,
+    language: book.language || googleBooks.language
   };
 }
 

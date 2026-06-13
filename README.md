@@ -170,5 +170,6 @@ El usuario de demostración existe únicamente cuando se ejecuta `npm run db:see
 - Para traducir títulos y sinopsis se puede configurar una instancia compatible
   con LibreTranslate mediante `TRANSLATION_API_URL` y, si aplica,
   `TRANSLATION_API_KEY`. Sin este servicio se conserva el texto original.
+- Las sinopsis se buscan primero en Open Library y luego en Google Books.
 - Spotify permite usar la playlist predeterminada, guardar un enlace personal o
   seleccionar playlists de la cuenta vinculada.
