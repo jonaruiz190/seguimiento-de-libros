@@ -58,7 +58,12 @@ export function normalizeOpenLibraryBook(document) {
     author: text(first(document.author_name), "Autor desconocido", 180),
     year: year >= 0 && year <= 3000 ? year : new Date().getFullYear(),
     pages: pages > 0 && pages <= 100000 ? pages : 1,
-    rating: 0,
+    rating: Math.min(5, Math.max(0, Number(document.ratings_average) || 0)),
+    ratingsCount: Math.max(0, Number(document.ratings_count) || 0),
+    readersCount: Math.max(
+      0,
+      Number(document.already_read_count) || Number(document.want_to_read_count) || 0
+    ),
     cover: coverUrl(document.cover_i),
     categories: cleanCategories(document.subject),
     synopsis: "Sinopsis pendiente de actualización desde el catálogo.",
@@ -91,13 +96,15 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
-export async function searchOpenLibrary(query, limit = 12) {
+export async function searchOpenLibrary(query, limit = 12, options = {}) {
   const url = new URL(OPEN_LIBRARY_SEARCH);
   url.searchParams.set("q", query);
   url.searchParams.set("limit", String(limit));
+  if (options.language) url.searchParams.set("lang", options.language);
+  if (options.sort) url.searchParams.set("sort", options.sort);
   url.searchParams.set(
     "fields",
-    "key,title,author_name,first_publish_year,number_of_pages_median,isbn,subject,cover_i,language,publisher"
+    "key,title,author_name,first_publish_year,number_of_pages_median,isbn,subject,cover_i,language,publisher,ratings_average,ratings_count,want_to_read_count,already_read_count"
   );
   const payload = await fetchJson(url);
   return (payload.docs || [])
@@ -105,7 +112,7 @@ export async function searchOpenLibrary(query, limit = 12) {
     .filter((book) => book.sourceId);
 }
 
-async function fetchWorkDescription(sourceId) {
+export async function fetchWorkDescription(sourceId) {
   try {
     const work = await fetchJson(`${OPEN_LIBRARY_BOOK}/works/${encodeURIComponent(sourceId)}.json`);
     if (typeof work.description === "string") return cleanDescription(work.description);
@@ -147,4 +154,42 @@ export async function getOpenLibraryBook(sourceId) {
     synopsis: description || book.synopsis,
     appleBooksUrl
   };
+}
+
+export async function translateBook(book, language, config) {
+  if (!language || language === "es" || !config?.translationApiUrl) return book;
+  const values = [book.title, book.synopsis].filter(Boolean);
+  if (!values.length) return book;
+  try {
+    const response = await fetch(config.translationApiUrl, {
+      method: "POST",
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        "Content-Type": "application/json",
+        ...(config.translationApiKey
+          ? { Authorization: `Bearer ${config.translationApiKey}` }
+          : {})
+      },
+      body: JSON.stringify({
+        q: values,
+        source: "auto",
+        target: language,
+        format: "text",
+        api_key: config.translationApiKey || undefined
+      })
+    });
+    if (!response.ok) return book;
+    const payload = await response.json();
+    const translated = Array.isArray(payload.translatedText)
+      ? payload.translatedText
+      : [payload.translatedText];
+    return {
+      ...book,
+      title: translated[0] || book.title,
+      synopsis: translated[1] || book.synopsis,
+      translated: true
+    };
+  } catch {
+    return book;
+  }
 }

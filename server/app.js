@@ -44,7 +44,7 @@ export function createApp({ pool, config }) {
     },
     referrerPolicy: { policy: "no-referrer" }
   }));
-  app.use(express.json({ limit: "20kb" }));
+  app.use(express.json({ limit: "2mb" }));
   app.use("/api", requireTrustedOrigin(config));
 
   app.get("/api/health", async (request, response, next) => {

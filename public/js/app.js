@@ -5,12 +5,25 @@ const state = {
   tracking: [],
   dashboard: null,
   integrations: null,
+  categories: [],
+  ranking: [],
+  avatarDataUrl: null,
   category: "Todos",
   trackingSearch: "",
   statusFilter: "all"
 };
 
 const spotifyEmbedUrl = "https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator";
+const loginQuotes = [
+  ["Un lector vive mil vidas antes de morir.", "George R. R. Martin"],
+  ["No todos los que vagan están perdidos.", "J. R. R. Tolkien"],
+  ["Somos lo que pretendemos ser.", "Kurt Vonnegut"],
+  ["A veces, las preguntas son complicadas y las respuestas sencillas.", "Dr. Seuss"],
+  ["Es nuestra elección mostrar lo que somos realmente.", "J. K. Rowling"],
+  ["La memoria calienta por dentro, pero también desgarra.", "Haruki Murakami"],
+  ["Solo con el corazón se puede ver bien.", "Antoine de Saint-Exupéry"],
+  ["La libertad es el derecho a decir que dos más dos son cuatro.", "George Orwell"]
+];
 
 const $ = (selector, scope = document) => scope.querySelector(selector);
 const $$ = (selector, scope = document) => [...scope.querySelectorAll(selector)];
@@ -19,6 +32,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 async function init() {
   bindEvents();
+  renderRandomQuote();
 
   try {
     const session = await api("/api/auth/me", { allowUnauthorized: true });
@@ -56,9 +70,14 @@ function bindEvents() {
   $("#spotify-button").addEventListener("click", toggleSpotifyPanel);
   $("#close-spotify").addEventListener("click", closeSpotifyPanel);
   $("#spotify-connect").addEventListener("click", connectSpotify);
+  $("#load-spotify-playlists").addEventListener("click", loadSpotifyPlaylists);
+  $("#spotify-playlist-select").addEventListener("change", selectSpotifyPlaylist);
   $("#tracking-form").addEventListener("submit", saveTracking);
   $("#tracking-status").addEventListener("change", applyDateDefaults);
   $("#refresh-dashboard").addEventListener("click", () => loadDashboard(true));
+  $("#ranking-filters").addEventListener("submit", loadRanking);
+  $("#profile-avatar-file").addEventListener("change", loadLocalAvatar);
+  $("#delete-profile-button").addEventListener("click", deleteProfile);
 
   $$("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
@@ -98,6 +117,14 @@ function bindEvents() {
       closeSpotifyPanel();
     }
   });
+}
+
+function renderRandomQuote() {
+  const index = Math.floor(Math.random() * loginQuotes.length);
+  const [quote, author] = loginQuotes[index];
+  $("#quote-number").textContent = String(index + 1).padStart(2, "0");
+  $("#login-quote").textContent = `“${quote}”`;
+  $("#login-quote-author").textContent = author;
 }
 
 async function api(url, options = {}) {
@@ -198,15 +225,17 @@ async function handleLogin(event) {
 
 async function enterApp(user) {
   state.user = user;
-  const [booksResult, trackingResult, integrationsResult] = await Promise.all([
+  const [booksResult, trackingResult, integrationsResult, categoriesResult] = await Promise.all([
     api("/api/books"),
     api("/api/tracking"),
-    api("/api/integrations/status")
+    api("/api/integrations/status"),
+    api("/api/catalog/categories")
   ]);
   state.books = booksResult.books;
   state.recommendations = booksResult.books;
   state.tracking = trackingResult.tracking;
   state.integrations = integrationsResult;
+  state.categories = categoriesResult.categories;
 
   $("#login-screen").classList.add("is-hidden");
   $("#app").classList.remove("is-hidden");
@@ -218,6 +247,8 @@ async function enterApp(user) {
   renderTracking();
   updateStats();
   renderIntegrationStatus();
+  populateCategoryControls();
+  applyLanguage();
   showSpotifyCallbackMessage();
   loadRecommendations();
 }
@@ -286,7 +317,9 @@ function closeSpotifyPanel() {
 
 function ensureSpotifyPlayback() {
   const frame = $("#spotify-frame");
-  if (!frame.src) frame.src = spotifyEmbedUrl;
+  if (!frame.src) frame.src = spotifyEmbedFromUrl(
+    state.user?.spotifyPlaylistUrl || state.integrations?.spotify?.playlistUrl
+  );
 }
 
 function stopSpotifyPlayback() {
@@ -312,6 +345,13 @@ function renderIntegrationStatus() {
     button.textContent = "Configurar Spotify";
     button.disabled = false;
   }
+  const playlist = state.user?.spotifyPlaylistUrl || spotify?.playlistUrl || "";
+  $("#spotify-playlist-select").innerHTML = `
+    <option value="">Playlist predeterminada</option>
+    ${playlist ? `<option value="${escapeHtml(playlist)}" selected>Mi playlist guardada</option>` : ""}
+  `;
+  $("#load-spotify-playlists").disabled = !spotify?.connected;
+  $("#spotify-frame").src = spotifyEmbedFromUrl(playlist);
 }
 
 function connectSpotify() {
@@ -320,6 +360,53 @@ function connectSpotify() {
     return;
   }
   window.location.assign("/api/integrations/spotify/connect");
+}
+
+async function loadSpotifyPlaylists() {
+  const button = $("#load-spotify-playlists");
+  button.disabled = true;
+  button.textContent = "Cargando...";
+  try {
+    const result = await api("/api/integrations/spotify/playlists");
+    const selected = state.user.spotifyPlaylistUrl || "";
+    $("#spotify-playlist-select").innerHTML = `
+      <option value="">Playlist predeterminada</option>
+      ${result.playlists.map((playlist) => `
+        <option value="${escapeHtml(playlist.url)}"
+          ${playlist.url === selected ? "selected" : ""}>
+          ${escapeHtml(playlist.name)} · ${escapeHtml(playlist.owner)}
+        </option>
+      `).join("")}
+    `;
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+    button.textContent = "Ver mis playlists";
+  }
+}
+
+async function selectSpotifyPlaylist(event) {
+  const playlistUrl = event.target.value || null;
+  try {
+    const result = await api("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(profilePayload({ spotifyPlaylistUrl: playlistUrl }))
+    });
+    state.user = result.user;
+    $("#spotify-frame").src = spotifyEmbedFromUrl(playlistUrl);
+    showToast(playlistUrl ? "Playlist personal seleccionada." : "Playlist predeterminada seleccionada.");
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function spotifyEmbedFromUrl(url) {
+  if (!url) return spotifyEmbedUrl;
+  const match = String(url).match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
+  return match
+    ? `https://open.spotify.com/embed/playlist/${match[1]}?utm_source=generator`
+    : spotifyEmbedUrl;
 }
 
 function showSpotifyCallbackMessage() {
@@ -348,16 +435,16 @@ async function showView(viewName) {
   });
   window.scrollTo({ top: 0, behavior: "smooth" });
   if (viewName === "dashboard") await loadDashboard();
+  if (viewName === "ranking" && !state.ranking.length) await loadRanking();
 }
 
 function renderCategoryFilters() {
   const preferences = state.user?.preferences || [];
-  const allCategories = [...new Set(state.recommendations.flatMap((book) => book.categories))];
   const categories = [
     "Todos",
     ...preferences,
-    ...allCategories.filter((category) => !preferences.includes(category))
-  ].slice(0, 7);
+    ...state.categories.filter((category) => !preferences.includes(category))
+  ];
 
   $("#category-filters").innerHTML = categories.map((category) => `
     <button class="filter-button ${category === state.category ? "is-active" : ""}"
@@ -367,10 +454,10 @@ function renderCategoryFilters() {
   `).join("");
 
   $$("[data-category]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       state.category = button.dataset.category;
       renderCategoryFilters();
-      renderBooks();
+      await loadRecommendations(state.category === "Todos" ? "" : state.category);
     });
   });
 }
@@ -378,7 +465,11 @@ function renderCategoryFilters() {
 function renderBooks() {
   const preferences = state.user?.preferences || [];
   const filtered = state.recommendations
-    .filter((book) => state.category === "Todos" || book.categories.includes(state.category))
+    .filter((book) =>
+      state.category === "Todos" ||
+      book.recommendedCategory === state.category ||
+      book.categories.includes(state.category)
+    )
     .sort((a, b) => {
       const aMatch = a.categories.some((category) => preferences.includes(category)) ? 1 : 0;
       const bMatch = b.categories.some((category) => preferences.includes(category)) ? 1 : 0;
@@ -387,29 +478,23 @@ function renderBooks() {
 
   $("#recommendations-grid").innerHTML = filtered.map((book) => `
     <article class="book-card">
-      <div class="book-card__cover-wrap">
+      <button class="book-card__cover-wrap book-card__preview" type="button"
+        ${book.sourceId
+          ? `data-preview-source="${escapeHtml(book.sourceId)}"`
+          : `data-book-id="${escapeHtml(book.id)}"`}>
         <img class="book-card__cover" src="${safeImageUrl(book.cover)}"
           alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
         ${book.sourceId || book.categories.some((category) => preferences.includes(category))
           ? '<span class="book-card__badge">Para ti</span>'
           : ""}
-      </div>
+      </button>
       <h3>${escapeHtml(book.title)}</h3>
       <p>${escapeHtml(book.author)}</p>
+      ${book.imported ? '<small class="library-label">En tu biblioteca</small>' : ""}
       <div class="book-card__meta">
         <span class="stars">${ratingStars(book.rating)}</span>
         <span>${escapeHtml(book.year)}</span>
       </div>
-      ${book.sourceId ? `
-        <button class="button button--secondary book-card__action" type="button"
-          data-import-recommendation="${escapeHtml(book.sourceId)}"
-          ${book.imported ? "disabled" : ""}>
-          ${book.imported ? "En tu biblioteca" : "+ Agregar a mi biblioteca"}
-        </button>
-      ` : `
-        <button class="button button--secondary book-card__action" type="button"
-          data-book-id="${escapeHtml(book.id)}">Ver detalles</button>
-      `}
     </article>
   `).join("");
 
@@ -418,16 +503,20 @@ function renderBooks() {
   $$("[data-book-id]").forEach((button) => {
     button.addEventListener("click", () => openBookModal(button.dataset.bookId));
   });
-  $$("[data-import-recommendation]").forEach((button) => {
-    button.addEventListener("click", () => importCatalogBook(button));
+  $$("[data-preview-source]").forEach((button) => {
+    button.addEventListener("click", () => openCatalogBookPreview(button.dataset.previewSource));
   });
 }
 
-async function loadRecommendations() {
+async function loadRecommendations(category = "") {
   try {
-    const result = await api("/api/catalog/recommendations");
+    const params = new URLSearchParams({
+      language: state.user?.language || "es"
+    });
+    if (category) params.set("category", category);
+    const result = await api(`/api/catalog/recommendations?${params}`);
     state.recommendations = result.books;
-    state.category = "Todos";
+    if (!category) state.category = "Todos";
     renderCategoryFilters();
     renderBooks();
   } catch (error) {
@@ -489,6 +578,58 @@ function openBookModal(bookId) {
   });
   $("#book-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
+}
+
+async function openCatalogBookPreview(sourceId) {
+  $("#book-detail").innerHTML = '<p class="empty-state">Cargando información y sinopsis...</p>';
+  $("#book-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  try {
+    const result = await api(
+      `/api/catalog/books/${encodeURIComponent(sourceId)}?language=${encodeURIComponent(state.user?.language || "es")}`
+    );
+    renderExternalBookDetail(result.book);
+  } catch (error) {
+    $("#book-detail").innerHTML = `<p class="empty-state">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function renderExternalBookDetail(book) {
+  $("#book-detail").innerHTML = `
+    <div class="book-detail">
+      <div class="book-detail__visual">
+        <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}">
+      </div>
+      <div class="book-detail__info">
+        <p class="eyebrow">${escapeHtml(book.categories[0] || "Libro")}</p>
+        <h2 id="modal-title">${escapeHtml(book.title)}</h2>
+        <p class="book-detail__author">de ${escapeHtml(book.author)}</p>
+        ${book.imported ? '<p class="library-label">En tu biblioteca</p>' : ""}
+        <div class="book-detail__facts">
+          <span>Publicado<strong>${escapeHtml(book.year)}</strong></span>
+          <span>Páginas<strong>${escapeHtml(book.pages)}</strong></span>
+          <span>Valoración<strong>${formatDecimal(book.rating)} / 5</strong></span>
+        </div>
+        <p class="book-detail__synopsis">${escapeHtml(book.synopsis)}</p>
+        <div class="tags">${book.categories
+          .map((category) => `<span class="tag">${escapeHtml(category)}</span>`)
+          .join("")}</div>
+        <div class="reading-links">${getReadingLinks(book).map((link) => `
+          <a class="button button--secondary" href="${safeExternalUrl(link.url)}"
+            target="_blank" rel="noopener noreferrer">Abrir en ${escapeHtml(link.label)}</a>
+        `).join("")}</div>
+        <button id="preview-import-button" class="button button--primary" type="button"
+          ${book.imported ? "disabled" : ""}>
+          ${book.imported ? "Ya está en tu biblioteca" : "Agregar a mi biblioteca"}
+        </button>
+      </div>
+    </div>
+  `;
+  attachImageFallbacks($("#book-detail"));
+  $("#preview-import-button").addEventListener("click", async (event) => {
+    event.currentTarget.dataset.importBook = book.sourceId;
+    await importCatalogBook(event.currentTarget);
+  });
 }
 
 function getReadingLinks(book, tracked) {
@@ -609,7 +750,14 @@ function openProfileModal() {
   $("#user-button").setAttribute("aria-expanded", "false");
   $("#profile-form").reset();
   $("#profile-name").value = state.user.name;
-  $("#profile-avatar").value = state.user.avatarUrl || "";
+  $("#profile-avatar").value = state.user.avatarUrl?.startsWith("http") ? state.user.avatarUrl : "";
+  state.avatarDataUrl = state.user.avatarUrl?.startsWith("data:") ? state.user.avatarUrl : null;
+  $("#profile-language").value = state.user.language || "es";
+  $("#profile-authors").value = (state.user.favoriteAuthors || []).join("\n");
+  $("#profile-playlist").value = state.user.spotifyPlaylistUrl || "";
+  $$("input[name='profile-preference']").forEach((input) => {
+    input.checked = state.user.preferences.includes(input.value);
+  });
   $("#profile-error").textContent = "";
   $("#profile-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
@@ -631,22 +779,102 @@ async function saveProfile(event) {
   try {
     const result = await api("/api/auth/profile", {
       method: "PUT",
-      body: JSON.stringify({
-        name: $("#profile-name").value.trim(),
-        avatarUrl: $("#profile-avatar").value.trim() || null,
-        currentPassword: $("#profile-current-password").value,
-        newPassword: $("#profile-new-password").value
-      })
+      body: JSON.stringify(profilePayload())
     });
     state.user = result.user;
     renderUserIdentity();
+    applyLanguage();
     $("#welcome-message").textContent = `${greeting()}, ${state.user.name.split(" ")[0]}`;
+    await loadRecommendations();
     closeProfileModal();
     showToast("Perfil actualizado.");
   } catch (error) {
     errorElement.textContent = error.message;
   } finally {
     submitButton.disabled = false;
+  }
+}
+
+function profilePayload(overrides = {}) {
+  const editing = !$("#profile-modal").classList.contains("is-hidden");
+  return {
+    name: editing ? $("#profile-name").value.trim() : state.user.name,
+    avatarUrl: editing
+      ? state.avatarDataUrl || $("#profile-avatar").value.trim() || null
+      : state.user.avatarUrl || null,
+    language: editing ? $("#profile-language").value : state.user.language || "es",
+    preferences: editing
+      ? $$("input[name='profile-preference']:checked").map((input) => input.value)
+      : state.user.preferences,
+    favoriteAuthors: editing
+      ? $("#profile-authors").value.split("\n").map((author) => author.trim()).filter(Boolean)
+      : state.user.favoriteAuthors || [],
+    spotifyPlaylistUrl: editing
+      ? $("#profile-playlist").value.trim() || null
+      : state.user.spotifyPlaylistUrl || null,
+    currentPassword: editing ? $("#profile-current-password").value : "",
+    newPassword: editing ? $("#profile-new-password").value : "",
+    ...overrides
+  };
+}
+
+function loadLocalAvatar(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  if (file.size > 1_000_000) {
+    event.target.value = "";
+    $("#profile-error").textContent = "La imagen debe pesar como máximo 1 MB.";
+    return;
+  }
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    state.avatarDataUrl = String(reader.result);
+    $("#profile-avatar").value = "";
+    $("#profile-error").textContent = "Imagen local lista para guardar.";
+  });
+  reader.readAsDataURL(file);
+}
+
+async function deleteProfile() {
+  const password = $("#delete-profile-password").value;
+  if (!password) {
+    $("#profile-error").textContent = "Ingresa tu contraseña para eliminar la cuenta.";
+    return;
+  }
+  if (!window.confirm("¿Eliminar definitivamente tu cuenta y todos sus datos? Esta acción no se puede deshacer.")) {
+    return;
+  }
+  try {
+    await api("/api/auth/profile", {
+      method: "DELETE",
+      body: JSON.stringify({ password })
+    });
+    closeProfileModal();
+    resetToLogin();
+    showToast("Tu cuenta fue eliminada.");
+  } catch (error) {
+    $("#profile-error").textContent = error.message;
+  }
+}
+
+function populateCategoryControls() {
+  const options = state.categories.map((category) =>
+    `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
+  ).join("");
+  $("#ranking-category").innerHTML = `<option value="">Todos los géneros</option>${options}`;
+  $("#profile-preferences").innerHTML = state.categories.map((category) => `
+    <label><input type="checkbox" name="profile-preference"
+      value="${escapeHtml(category)}"> ${escapeHtml(category)}</label>
+  `).join("");
+  const register = $("#register-preferences");
+  if (register) {
+    register.innerHTML = state.categories.map((category) => `
+      <label><input type="checkbox" name="preference"
+        value="${escapeHtml(category)}"> ${escapeHtml(category)}</label>
+    `).join("");
+    $$("input[name='preference']").forEach((checkbox) => {
+      checkbox.addEventListener("change", enforcePreferenceLimit);
+    });
   }
 }
 
@@ -664,7 +892,11 @@ async function runCatalogSearch(query) {
   $("#catalog-results").innerHTML = "";
 
   try {
-    const result = await api(`/api/catalog/search?q=${encodeURIComponent(query)}`);
+    const params = new URLSearchParams({
+      q: query,
+      language: state.user?.language || "es"
+    });
+    const result = await api(`/api/catalog/search?${params}`);
     renderCatalogResults(result.books);
     message.textContent = result.books.length
       ? `${result.books.length} resultados encontrados.`
@@ -679,7 +911,10 @@ async function runCatalogSearch(query) {
 function renderCatalogResults(books) {
   $("#catalog-results").innerHTML = books.map((book) => `
     <article class="catalog-book">
-      <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
+      <button class="catalog-book__preview" type="button"
+        data-preview-source="${escapeHtml(book.sourceId)}">
+        <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
+      </button>
       <div>
         <h3>${escapeHtml(book.title)}</h3>
         <p>${escapeHtml(book.author)}</p>
@@ -693,6 +928,9 @@ function renderCatalogResults(books) {
   attachImageFallbacks($("#catalog-results"));
   $$("[data-import-book]").forEach((button) => {
     button.addEventListener("click", () => importCatalogBook(button));
+  });
+  $$("[data-preview-source]", $("#catalog-results")).forEach((button) => {
+    button.addEventListener("click", () => openCatalogBookPreview(button.dataset.previewSource));
   });
 }
 
@@ -780,7 +1018,9 @@ function renderTracking() {
 async function deleteTracking(id) {
   const item = state.tracking.find((entry) => entry.id === id);
   const book = findBook(item?.bookId);
-  if (!item || !window.confirm(`¿Eliminar "${book.title}" de tu seguimiento?`)) return;
+  if (!item || !window.confirm(
+    `¿Quitar "${book.title}" de tu seguimiento? Sus estadísticas se conservarán.`
+  )) return;
 
   try {
     await api(`/api/tracking/${id}`, { method: "DELETE" });
@@ -788,7 +1028,7 @@ async function deleteTracking(id) {
     state.dashboard = null;
     renderTracking();
     updateStats();
-    showToast("Libro eliminado del seguimiento.");
+    showToast("Libro retirado del seguimiento. El historial se conservó.");
   } catch (error) {
     showToast(error.message);
   }
@@ -933,6 +1173,76 @@ function renderDashboardBooks(books) {
     `).join("")}
   `;
   attachImageFallbacks(container);
+}
+
+async function loadRanking(event) {
+  event?.preventDefault();
+  const loading = $("#ranking-loading");
+  loading.textContent = "Cargando el Top 100...";
+  loading.classList.remove("is-hidden");
+  $("#ranking-grid").innerHTML = "";
+  const params = new URLSearchParams({
+    minRating: $("#ranking-rating").value || "0",
+    language: state.user?.language || "es"
+  });
+  const author = $("#ranking-author").value.trim();
+  const category = $("#ranking-category").value;
+  const year = $("#ranking-year").value;
+  if (author) params.set("author", author);
+  if (category) params.set("category", category);
+  if (year) params.set("year", year);
+  try {
+    const result = await api(`/api/catalog/ranking?${params}`);
+    state.ranking = result.books;
+    renderRanking();
+    $("#ranking-note").textContent = result.officialBestseller
+      ? `Ranking oficial: ${result.source}.`
+      : `Fuente: ${result.source}; ordenado por ${result.rankingType}. No es una lista oficial de best sellers.`;
+  } catch (error) {
+    loading.textContent = error.message;
+  }
+}
+
+function renderRanking() {
+  $("#ranking-grid").innerHTML = state.ranking.map((book) => `
+    <article class="ranking-book">
+      <strong class="ranking-book__number">#${book.rank}</strong>
+      <button class="ranking-book__cover" type="button"
+        data-preview-source="${escapeHtml(book.sourceId)}">
+        <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}">
+      </button>
+      <div>
+        <h2>${escapeHtml(book.title)}</h2>
+        <p>${escapeHtml(book.author)}</p>
+        <small>${ratingStars(book.rating)} ${formatDecimal(book.rating)}
+          · ${numberFormatter.format(book.readersCount)} lectores</small>
+      </div>
+    </article>
+  `).join("");
+  $("#ranking-loading").classList.toggle("is-hidden", state.ranking.length > 0);
+  attachImageFallbacks($("#ranking-grid"));
+  $$("[data-preview-source]", $("#ranking-grid")).forEach((button) => {
+    button.addEventListener("click", () => openCatalogBookPreview(button.dataset.previewSource));
+  });
+}
+
+function applyLanguage() {
+  const language = state.user?.language || "es";
+  document.documentElement.lang = language;
+  const translations = {
+    en: ["Home", "My books", "Listen", "Edit profile", "Log out"],
+    fr: ["Accueil", "Mes lectures", "Écouter", "Modifier le profil", "Se déconnecter"],
+    de: ["Start", "Meine Bücher", "Anhören", "Profil bearbeiten", "Abmelden"],
+    it: ["Home", "Le mie letture", "Ascolta", "Modifica profilo", "Esci"],
+    pt: ["Início", "Minhas leituras", "Ouvir", "Editar perfil", "Sair"]
+  };
+  const labels = translations[language];
+  if (!labels) return;
+  $$("[data-view='home']").forEach((element) => { element.lastChild.textContent = labels[0]; });
+  $$("[data-view='tracking']").forEach((element) => { element.lastChild.textContent = labels[1]; });
+  $("#spotify-button").lastChild.textContent = ` ${labels[2]}`;
+  $("#profile-button").textContent = labels[3];
+  $("#logout-button").textContent = labels[4];
 }
 
 function findBook(id) {

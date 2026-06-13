@@ -118,6 +118,9 @@ npm run db:seed
 - `GET /api/dashboard`
 - `GET /api/catalog/search?q=...`
 - `GET /api/catalog/recommendations`
+- `GET /api/catalog/categories`
+- `GET /api/catalog/books/:sourceId`
+- `GET /api/catalog/ranking`
 - `POST /api/catalog/import`
 - `GET /api/integrations/status`
 - `GET /api/integrations/spotify/connect`
@@ -161,3 +164,11 @@ Antes de publicar:
 7. Configura monitoreo, logs, alertas y rotación de secretos.
 
 El usuario de demostración existe únicamente cuando se ejecuta `npm run db:seed`.
+- Las recomendaciones cargan hasta 20 títulos por cada género favorito.
+- El Top 100 usa popularidad y valoraciones de Open Library; no se presenta como
+  una lista oficial de best sellers.
+- Para traducir títulos y sinopsis se puede configurar una instancia compatible
+  con LibreTranslate mediante `TRANSLATION_API_URL` y, si aplica,
+  `TRANSLATION_API_KEY`. Sin este servicio se conserva el texto original.
+- Spotify permite usar la playlist predeterminada, guardar un enlace personal o
+  seleccionar playlists de la cuenta vinculada.

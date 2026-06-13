@@ -13,7 +13,7 @@ export function createTrackingRouter({ pool }) {
               reading_provider AS "readingProvider",
               current_page AS "currentPage"
        FROM tracking
-       WHERE user_id = $1
+       WHERE user_id = $1 AND archived_at IS NULL
        ORDER BY updated_at DESC`,
       [request.user.id]
     );
@@ -28,6 +28,13 @@ export function createTrackingRouter({ pool }) {
           (user_id, book_id, status, rating, comment, format,
            started_at, finished_at, reading_minutes, reading_provider, current_page)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10)
+         ON CONFLICT (user_id, book_id) DO UPDATE SET
+           status = EXCLUDED.status, rating = EXCLUDED.rating,
+           comment = EXCLUDED.comment, format = EXCLUDED.format,
+           started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at,
+           reading_provider = EXCLUDED.reading_provider,
+           current_page = EXCLUDED.current_page, archived_at = NULL,
+           updated_at = NOW()
          RETURNING id, book_id AS "bookId", status, rating, comment, format,
                    started_at AS "startedAt", finished_at AS "finishedAt",
                    reading_provider AS "readingProvider",
@@ -93,7 +100,9 @@ export function createTrackingRouter({ pool }) {
 
   router.delete("/:id", asyncHandler(async (request, response) => {
     const result = await pool.query(
-      "DELETE FROM tracking WHERE id = $1 AND user_id = $2",
+      `UPDATE tracking
+       SET archived_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND archived_at IS NULL`,
       [request.params.id, request.user.id]
     );
     if (result.rowCount === 0) {

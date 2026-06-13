@@ -1,49 +1,69 @@
 import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { asyncHandler, requireAuth } from "../middleware.js";
-import { getOpenLibraryBook, searchOpenLibrary } from "../services/catalog.js";
-import { catalogImportSchema, catalogSearchSchema, validate } from "../validation.js";
+import { BOOK_CATEGORIES, categorySubject } from "../catalog-categories.js";
+import {
+  getOpenLibraryBook,
+  searchOpenLibrary,
+  translateBook
+} from "../services/catalog.js";
+import {
+  catalogImportSchema,
+  catalogSearchSchema,
+  rankingSchema,
+  recommendationSchema,
+  validate
+} from "../validation.js";
 
 function bookId(book) {
   return `ol-${book.sourceId.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${randomUUID().slice(0, 8)}`;
 }
 
-export function createCatalogRouter({ pool }) {
+export function createCatalogRouter({ pool, config }) {
   const router = Router();
   router.use(requireAuth(pool));
 
+  router.get("/categories", (request, response) => {
+    response.json({ categories: BOOK_CATEGORIES.map((category) => category.name) });
+  });
+
   router.get("/recommendations", asyncHandler(async (request, response) => {
-    const preferencesResult = await pool.query(
-      "SELECT category FROM user_preferences WHERE user_id = $1 ORDER BY category LIMIT 3",
+    const input = validate(recommendationSchema, request.query);
+    const preferenceRows = await pool.query(
+      "SELECT category FROM user_preferences WHERE user_id = $1 ORDER BY category LIMIT 5",
       [request.user.id]
     );
-    const preferences = preferencesResult.rows.map((row) => row.category);
-    const subjects = preferences.length
-      ? preferences.map(recommendationSubject)
-      : ["fiction", "classics", "fantasy"];
-    const searches = await Promise.allSettled(
-      subjects.map((subject) => searchOpenLibrary(`subject:${subject}`, 6))
-    );
+    const categories = input.category
+      ? [input.category]
+      : preferenceRows.rows.length
+        ? preferenceRows.rows.map((row) => row.category)
+        : ["Fantasía", "Clásicos", "Aventura"];
+    const searches = await Promise.allSettled(categories.map((category) =>
+      searchOpenLibrary(`subject:${categorySubject(category)}`, 25, {
+        language: input.language,
+        sort: "rating"
+      })
+    ));
     const recommendations = [];
     const seen = new Set();
 
-    for (const search of searches) {
-      if (search.status !== "fulfilled") continue;
+    searches.forEach((search, index) => {
+      if (search.status !== "fulfilled") return;
+      let categoryCount = 0;
       for (const book of search.value) {
-        if (seen.has(book.sourceId) || book.pages <= 1) continue;
-        seen.add(book.sourceId);
-        recommendations.push(book);
-        if (recommendations.length === 12) break;
+        const categoryBookKey = `${categories[index]}:${book.sourceId}`;
+        if (seen.has(categoryBookKey) || book.pages <= 1 || categoryCount >= 20) continue;
+        seen.add(categoryBookKey);
+        categoryCount += 1;
+        recommendations.push({ ...book, recommendedCategory: categories[index] });
       }
-      if (recommendations.length === 12) break;
-    }
+    });
 
     if (!recommendations.length) {
       const error = new Error("No se pudieron cargar recomendaciones del catálogo real.");
       error.status = 502;
       throw error;
     }
-
     const existing = await pool.query(
       `SELECT source_id FROM books
        WHERE catalog_source = 'openlibrary' AND source_id = ANY($1::text[])`,
@@ -51,6 +71,7 @@ export function createCatalogRouter({ pool }) {
     );
     const imported = new Set(existing.rows.map((row) => row.source_id));
     response.json({
+      categories,
       books: recommendations.map((book) => ({
         ...book,
         imported: imported.has(book.sourceId)
@@ -60,8 +81,59 @@ export function createCatalogRouter({ pool }) {
 
   router.get("/search", asyncHandler(async (request, response) => {
     const input = validate(catalogSearchSchema, request.query);
-    const books = await searchOpenLibrary(input.q);
+    const books = await searchOpenLibrary(input.q, 24, { language: input.language });
     response.json({ books });
+  }));
+
+  router.get("/books/:sourceId", asyncHandler(async (request, response) => {
+    const sourceId = validate(catalogImportSchema, {
+      sourceId: request.params.sourceId
+    }).sourceId;
+    const language = String(request.query.language || "es");
+    const book = await translateBook(
+      await getOpenLibraryBook(sourceId),
+      language,
+      config
+    );
+    const existing = await pool.query(
+      `SELECT id FROM books
+       WHERE catalog_source = 'openlibrary' AND source_id = $1`,
+      [sourceId]
+    );
+    response.json({
+      book: {
+        ...book,
+        imported: existing.rowCount > 0,
+        localId: existing.rows[0]?.id || null
+      }
+    });
+  }));
+
+  router.get("/ranking", asyncHandler(async (request, response) => {
+    const input = validate(rankingSchema, request.query);
+    const query = [];
+    if (input.author) query.push(`author:"${input.author.replaceAll('"', "")}"`);
+    if (input.category) query.push(`subject:${categorySubject(input.category)}`);
+    if (input.year !== undefined) query.push(`first_publish_year:${input.year}`);
+    if (!query.length) query.push("language:eng");
+    const books = await searchOpenLibrary(query.join(" "), 100, {
+      language: input.language,
+      sort: "rating"
+    });
+    response.json({
+      source: "Open Library",
+      rankingType: "popularidad y valoraciones del catálogo",
+      officialBestseller: false,
+      books: books
+        .filter((book) => book.rating >= input.minRating)
+        .sort((a, b) =>
+          b.readersCount - a.readersCount ||
+          b.ratingsCount - a.ratingsCount ||
+          b.rating - a.rating
+        )
+        .slice(0, 100)
+        .map((book, index) => ({ ...book, rank: index + 1 }))
+    });
   }));
 
   router.post("/import", asyncHandler(async (request, response) => {
@@ -85,10 +157,12 @@ export function createCatalogRouter({ pool }) {
          ON CONFLICT (id) DO UPDATE SET
            title = EXCLUDED.title, author = EXCLUDED.author,
            publication_year = EXCLUDED.publication_year, pages = EXCLUDED.pages,
-           cover_url = EXCLUDED.cover_url, synopsis = EXCLUDED.synopsis,
-           isbn_13 = EXCLUDED.isbn_13, publisher = EXCLUDED.publisher,
-           language = EXCLUDED.language, preview_url = EXCLUDED.preview_url,
-           apple_books_url = EXCLUDED.apple_books_url, kindle_url = EXCLUDED.kindle_url,
+           rating = EXCLUDED.rating, cover_url = EXCLUDED.cover_url,
+           synopsis = EXCLUDED.synopsis, isbn_13 = EXCLUDED.isbn_13,
+           publisher = EXCLUDED.publisher, language = EXCLUDED.language,
+           preview_url = EXCLUDED.preview_url,
+           apple_books_url = EXCLUDED.apple_books_url,
+           kindle_url = EXCLUDED.kindle_url,
            metadata_synced_at = NOW(), updated_at = NOW()
          RETURNING id`,
         [
@@ -115,17 +189,4 @@ export function createCatalogRouter({ pool }) {
   }));
 
   return router;
-}
-
-function recommendationSubject(preference) {
-  const subjects = {
-    "Fantasía": "fantasy",
-    "Ciencia ficción": "science_fiction",
-    "Clásicos": "classics",
-    "Romance": "romance",
-    "Historia": "history",
-    "Desarrollo personal": "self_help",
-    "Realismo mágico": "magical_realism"
-  };
-  return subjects[preference] || preference.toLowerCase().replaceAll(" ", "_");
 }

@@ -13,7 +13,9 @@ export function createDashboardRouter({ pool }) {
         pool.query(
           `SELECT
              COUNT(*) FILTER (WHERE t.status = 'Leído')::int AS read_books,
-             COUNT(*) FILTER (WHERE t.status = 'Leyendo')::int AS reading_books,
+             COUNT(*) FILTER (
+               WHERE t.status = 'Leyendo' AND t.archived_at IS NULL
+             )::int AS reading_books,
              COALESCE(SUM((t.finished_at - t.started_at) + 1) FILTER (
                WHERE t.status = 'Leído'
                  AND t.started_at IS NOT NULL
@@ -88,6 +90,7 @@ export function createDashboardRouter({ pool }) {
                   COUNT(*)::int AS value
            FROM tracking t
            WHERE t.user_id = $1 AND t.format = 'Digital'
+             AND (t.archived_at IS NULL OR t.status = 'Leído')
            GROUP BY COALESCE(t.reading_provider, 'Sin especificar')
            ORDER BY value DESC, label
            LIMIT 8`,
@@ -97,6 +100,7 @@ export function createDashboardRouter({ pool }) {
           `SELECT t.format AS label, COUNT(*)::int AS value
            FROM tracking t
            WHERE t.user_id = $1
+             AND (t.archived_at IS NULL OR t.status = 'Leído')
            GROUP BY t.format
            ORDER BY value DESC, label`,
           [userId]

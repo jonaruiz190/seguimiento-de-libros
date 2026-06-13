@@ -1491,6 +1491,113 @@ tr:last-child td {
   }
 }
 
+.book-card__preview,
+.catalog-book__preview,
+.ranking-book__cover {
+  padding: 0;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.book-card__preview {
+  width: 100%;
+  text-align: left;
+}
+
+.book-card__preview:focus-visible,
+.catalog-book__preview:focus-visible,
+.ranking-book__cover:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.library-label {
+  display: block;
+  margin-top: -4px;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.spotify-source {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.spotify-source select {
+  width: 100%;
+}
+
+.ranking-view {
+  max-width: 1240px;
+  min-height: calc(100vh - 80px);
+  padding: 60px 28px 90px;
+  margin: 0 auto;
+}
+
+.ranking-filters {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 180px 130px auto;
+  gap: 12px;
+  margin: 28px 0 12px;
+}
+
+.ranking-book-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.ranking-book {
+  display: grid;
+  grid-template-columns: 58px 72px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 14px 20px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.ranking-book__number {
+  color: var(--green);
+  font-family: "Playfair Display", serif;
+  font-size: 1.25rem;
+}
+
+.ranking-book__cover img {
+  display: block;
+  width: 60px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 6px;
+}
+
+.ranking-book h2 {
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+
+.ranking-book p {
+  margin: 0 0 7px;
+  color: var(--muted);
+}
+
+.button--danger {
+  color: #fff;
+  background: #a13333;
+  border-color: #a13333;
+}
+
+.danger-divider {
+  width: 100%;
+  margin: 24px 0;
+  border: 0;
+  border-top: 1px solid #e3bcbc;
+}
+
 @media (max-width: 720px) {
   body {
     padding-bottom: 66px;
@@ -1536,7 +1643,7 @@ tr:last-child td {
     left: 0;
     display: grid;
     height: 66px;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     background: var(--white);
     border-top: 1px solid var(--line);
   }
@@ -1622,6 +1729,14 @@ tr:last-child td {
   .monthly-chart {
     overflow-x: auto;
     grid-template-columns: repeat(12, minmax(34px, 1fr));
+  }
+
+  .ranking-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ranking-filters .button {
+    grid-column: 1 / -1;
   }
 }
 
@@ -1727,5 +1842,24 @@ tr:last-child td {
 
   .dashboard-panel {
     padding: 22px 17px;
+  }
+
+  .ranking-view {
+    padding: 36px 16px 80px;
+  }
+
+  .ranking-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .ranking-book {
+    grid-template-columns: 42px 58px minmax(0, 1fr);
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .ranking-book__cover img {
+    width: 52px;
+    height: 76px;
   }
 }

@@ -50,9 +50,19 @@ export const profileSchema = z.object({
     z.url().max(2000).refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
       message: "La foto debe ser una URL http o https."
     }),
+    z.string().max(1_600_000).regex(/^data:image\/(png|jpeg|webp);base64,/),
     z.literal("")
   ]).nullable()
     .transform((value) => value || null),
+  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).default("es"),
+  preferences: z.array(z.string().trim().min(2).max(100)).max(20).default([]),
+  favoriteAuthors: z.array(z.string().trim().min(2).max(180)).max(20).default([]),
+  spotifyPlaylistUrl: z.union([
+    z.url().max(2000).refine((value) => value.startsWith("https://open.spotify.com/playlist/"), {
+      message: "Usa un enlace de playlist de Spotify."
+    }),
+    z.literal("")
+  ]).nullable().optional().default(null).transform((value) => value || null),
   currentPassword: z.string().max(128).optional().default(""),
   newPassword: z.union([strongPassword, z.literal("")]).optional().default("")
 }).strict().superRefine((item, context) => {
@@ -66,7 +76,25 @@ export const profileSchema = z.object({
 });
 
 export const catalogSearchSchema = z.object({
-  q: z.string().trim().min(2).max(150)
+  q: z.string().trim().min(2).max(150),
+  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional()
+}).strict();
+
+export const recommendationSchema = z.object({
+  category: z.string().trim().min(2).max(100).optional(),
+  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional()
+}).strict();
+
+export const rankingSchema = z.object({
+  author: z.string().trim().max(180).optional(),
+  category: z.string().trim().max(100).optional(),
+  minRating: z.coerce.number().min(0).max(5).default(0),
+  year: z.coerce.number().int().min(0).max(3000).optional(),
+  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional()
+}).strict();
+
+export const deleteProfileSchema = z.object({
+  password: z.string().min(8).max(128)
 }).strict();
 
 export const catalogImportSchema = z.object({

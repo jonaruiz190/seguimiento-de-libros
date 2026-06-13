@@ -13,7 +13,10 @@ test("normaliza resultados de Open Library para el catálogo local", () => {
     subject: ["Fantasía", "Fantasía", "Aventura", "award:hugo=1970"],
     cover_i: 42,
     language: ["spa"],
-    publisher: ["Editorial"]
+    publisher: ["Editorial"],
+    ratings_average: 4.25,
+    ratings_count: 120,
+    already_read_count: 450
   });
 
   assert.equal(book.sourceId, "OL123W");
@@ -21,4 +24,6 @@ test("normaliza resultados de Open Library para el catálogo local", () => {
   assert.deepEqual(book.categories, ["Fantasía", "Aventura"]);
   assert.match(book.cover, /^https:\/\/covers\.openlibrary\.org/);
   assert.match(book.kindleUrl, /amazon\.com/);
+  assert.equal(book.rating, 4.25);
+  assert.equal(book.readersCount, 450);
 });

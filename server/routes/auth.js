@@ -8,7 +8,13 @@ import {
   sessionCookieOptions,
   verifyPassword
 } from "../security.js";
-import { loginSchema, profileSchema, registerSchema, validate } from "../validation.js";
+import {
+  deleteProfileSchema,
+  loginSchema,
+  profileSchema,
+  registerSchema,
+  validate
+} from "../validation.js";
 
 export function createAuthRouter({ pool, config }) {
   const router = Router();
@@ -30,7 +36,9 @@ export function createAuthRouter({ pool, config }) {
   router.post("/login", loginLimiter, asyncHandler(async (request, response) => {
     const credentials = validate(loginSchema, request.body);
     const result = await pool.query(
-      "SELECT id, name, email, avatar_url, password_hash FROM users WHERE email = $1",
+      `SELECT id, name, email, avatar_url, language, spotify_playlist_url,
+              password_hash
+       FROM users WHERE email = $1`,
       [credentials.email]
     );
     const user = result.rows[0];
@@ -103,14 +111,38 @@ export function createAuthRouter({ pool, config }) {
         const passwordHash = await hashPassword(profile.newPassword);
         await client.query(
           `UPDATE users
-           SET name = $1, avatar_url = $2, password_hash = $3, updated_at = NOW()
-           WHERE id = $4`,
-          [profile.name, profile.avatarUrl, passwordHash, request.user.id]
+           SET name = $1, avatar_url = $2, language = $3,
+               spotify_playlist_url = $4, password_hash = $5, updated_at = NOW()
+           WHERE id = $6`,
+          [
+            profile.name, profile.avatarUrl, profile.language,
+            profile.spotifyPlaylistUrl, passwordHash, request.user.id
+          ]
         );
       } else {
         await client.query(
-          "UPDATE users SET name = $1, avatar_url = $2, updated_at = NOW() WHERE id = $3",
-          [profile.name, profile.avatarUrl, request.user.id]
+          `UPDATE users
+           SET name = $1, avatar_url = $2, language = $3,
+               spotify_playlist_url = $4, updated_at = NOW()
+           WHERE id = $5`,
+          [
+            profile.name, profile.avatarUrl, profile.language,
+            profile.spotifyPlaylistUrl, request.user.id
+          ]
+        );
+      }
+      await client.query("DELETE FROM user_preferences WHERE user_id = $1", [request.user.id]);
+      for (const category of [...new Set(profile.preferences)]) {
+        await client.query(
+          "INSERT INTO user_preferences (user_id, category) VALUES ($1, $2)",
+          [request.user.id, category]
+        );
+      }
+      await client.query("DELETE FROM user_favorite_authors WHERE user_id = $1", [request.user.id]);
+      for (const author of [...new Set(profile.favoriteAuthors)]) {
+        await client.query(
+          "INSERT INTO user_favorite_authors (user_id, author) VALUES ($1, $2)",
+          [request.user.id, author]
         );
       }
       await client.query("COMMIT");
@@ -122,10 +154,30 @@ export function createAuthRouter({ pool, config }) {
     }
 
     const user = await pool.query(
-      "SELECT id, name, email, avatar_url FROM users WHERE id = $1",
+      `SELECT id, name, email, avatar_url, language, spotify_playlist_url
+       FROM users WHERE id = $1`,
       [request.user.id]
     );
     response.json({ user: await getPublicUser(pool, user.rows[0]) });
+  }));
+
+  router.delete("/profile", requireAuth(pool), asyncHandler(async (request, response) => {
+    const input = validate(deleteProfileSchema, request.body);
+    const current = await pool.query(
+      "SELECT password_hash FROM users WHERE id = $1",
+      [request.user.id]
+    );
+    if (!current.rowCount || !(await verifyPassword(input.password, current.rows[0].password_hash))) {
+      return response.status(401).json({ error: "La contraseña no es correcta." });
+    }
+    await pool.query("DELETE FROM users WHERE id = $1", [request.user.id]);
+    response.clearCookie("sid", {
+      httpOnly: true,
+      secure: config.isProduction,
+      sameSite: "lax",
+      path: "/"
+    });
+    response.status(204).end();
   }));
 
   router.post("/logout", requireAuth(pool), asyncHandler(async (request, response) => {
@@ -154,15 +206,24 @@ async function startSession(pool, config, response, userId) {
 }
 
 async function getPublicUser(pool, user) {
-  const preferences = await pool.query(
-    "SELECT category FROM user_preferences WHERE user_id = $1 ORDER BY category",
-    [user.id]
-  );
+  const [preferences, authors] = await Promise.all([
+    pool.query(
+      "SELECT category FROM user_preferences WHERE user_id = $1 ORDER BY category",
+      [user.id]
+    ),
+    pool.query(
+      "SELECT author FROM user_favorite_authors WHERE user_id = $1 ORDER BY author",
+      [user.id]
+    )
+  ]);
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     avatarUrl: user.avatar_url || null,
-    preferences: preferences.rows.map((row) => row.category)
+    language: user.language || "es",
+    spotifyPlaylistUrl: user.spotify_playlist_url || null,
+    preferences: preferences.rows.map((row) => row.category),
+    favoriteAuthors: authors.rows.map((row) => row.author)
   };
 }

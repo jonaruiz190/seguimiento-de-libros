@@ -37,9 +37,9 @@
     </section>
     <aside class="login-art" aria-hidden="true">
       <div class="quote-card">
-        <span class="quote-card__number">01</span>
-        <blockquote>“Un lector vive mil vidas antes de morir.”</blockquote>
-        <cite>George R. R. Martin</cite>
+        <span id="quote-number" class="quote-card__number">01</span>
+        <blockquote id="login-quote">“Un lector vive mil vidas antes de morir.”</blockquote>
+        <cite id="login-quote-author">George R. R. Martin</cite>
       </div>
     </aside>
   </div>
@@ -54,6 +54,7 @@
         <button class="nav-link is-active" type="button" data-view="home">Inicio</button>
         <button class="nav-link" type="button" data-view="tracking">Mi seguimiento</button>
         <button class="nav-link" type="button" data-view="dashboard">Dashboard</button>
+        <button class="nav-link" type="button" data-view="ranking">Top 100</button>
       </nav>
       <div class="topbar-actions">
         <button id="spotify-button" class="listen-button" type="button" aria-expanded="false">
@@ -92,6 +93,15 @@
         height="352"
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
         loading="lazy"></iframe>
+      <div class="spotify-source">
+        <label for="spotify-playlist-select">Playlist para leer</label>
+        <select id="spotify-playlist-select">
+          <option value="">Playlist predeterminada</option>
+        </select>
+        <button id="load-spotify-playlists" class="button button--secondary" type="button">
+          Ver mis playlists
+        </button>
+      </div>
       <div class="spotify-panel__connection">
         <p id="spotify-status">Puedes reproducir la lista sin conectar tu cuenta.</p>
         <button id="spotify-connect" class="button button--secondary" type="button">
@@ -301,12 +311,40 @@
           </article>
         </div>
       </section>
+
+      <section id="ranking-view" class="view ranking-view is-hidden">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Descubre nuevas lecturas</p>
+            <h1>Top 100 del catálogo</h1>
+            <p>Ranking por popularidad y valoraciones públicas de Open Library.</p>
+          </div>
+        </div>
+        <form id="ranking-filters" class="ranking-filters">
+          <input id="ranking-author" type="search" placeholder="Filtrar por autor">
+          <select id="ranking-category"><option value="">Todos los géneros</option></select>
+          <select id="ranking-rating">
+            <option value="0">Cualquier rating</option>
+            <option value="3">3+ estrellas</option>
+            <option value="4">4+ estrellas</option>
+            <option value="4.5">4.5+ estrellas</option>
+          </select>
+          <input id="ranking-year" type="number" min="0" max="3000" placeholder="Año">
+          <button class="button button--primary" type="submit">Aplicar filtros</button>
+        </form>
+        <p id="ranking-note" class="field-hint">
+          Este ranking no representa una lista oficial de best sellers.
+        </p>
+        <div id="ranking-grid" class="ranking-book-grid"></div>
+        <p id="ranking-loading" class="empty-state">Cargando el Top 100...</p>
+      </section>
     </main>
 
     <nav class="mobile-nav" aria-label="Navegación móvil">
       <button class="mobile-nav__item is-active" type="button" data-view="home"><span>⌂</span>Inicio</button>
       <button class="mobile-nav__item" type="button" data-view="tracking"><span>▤</span>Seguimiento</button>
       <button class="mobile-nav__item" type="button" data-view="dashboard"><span>◫</span>Dashboard</button>
+      <button class="mobile-nav__item" type="button" data-view="ranking"><span>#</span>Top 100</button>
     </nav>
   </div>
 
@@ -421,7 +459,7 @@
       <p class="field-hint">Mínimo 12 caracteres, con mayúscula, minúscula y número.</p>
       <fieldset class="preference-fieldset">
         <legend>¿Qué te gusta leer? <span>(hasta 5)</span></legend>
-        <div class="preference-grid">
+        <div id="register-preferences" class="preference-grid">
           <label><input type="checkbox" name="preference" value="Fantasía"> Fantasía</label>
           <label><input type="checkbox" name="preference" value="Ciencia ficción"> Ciencia ficción</label>
           <label><input type="checkbox" name="preference" value="Clásicos"> Clásicos</label>
@@ -446,7 +484,28 @@
       <label for="profile-avatar">Foto de perfil</label>
       <input id="profile-avatar" type="url" maxlength="2000"
         placeholder="https://ejemplo.com/mi-foto.jpg">
-      <p class="field-hint">Puedes usar una URL de imagen. Si la dejas vacía se mostrará tu inicial.</p>
+      <label for="profile-avatar-file">O cargar desde tu dispositivo</label>
+      <input id="profile-avatar-file" type="file" accept="image/png,image/jpeg,image/webp">
+      <p class="field-hint">PNG, JPG o WebP de hasta 1 MB, o una URL HTTPS.</p>
+      <label for="profile-language">Idioma preferido</label>
+      <select id="profile-language">
+        <option value="es">Español</option>
+        <option value="en">English</option>
+        <option value="fr">Français</option>
+        <option value="de">Deutsch</option>
+        <option value="it">Italiano</option>
+        <option value="pt">Português</option>
+      </select>
+      <fieldset class="preference-fieldset">
+        <legend>Géneros favoritos <span>(hasta 20)</span></legend>
+        <div id="profile-preferences" class="preference-grid"></div>
+      </fieldset>
+      <label for="profile-authors">Autores favoritos</label>
+      <textarea id="profile-authors" rows="3"
+        placeholder="Un autor por línea, por ejemplo:&#10;Jane Austen&#10;Brandon Sanderson"></textarea>
+      <label for="profile-playlist">Playlist personal de Spotify</label>
+      <input id="profile-playlist" type="url" maxlength="2000"
+        placeholder="https://open.spotify.com/playlist/...">
       <label for="profile-current-password">Contraseña actual</label>
       <input id="profile-current-password" type="password" autocomplete="current-password" maxlength="128">
       <label for="profile-new-password">Nueva contraseña</label>
@@ -454,6 +513,13 @@
       <p class="field-hint">Déjala vacía si no quieres cambiar tu contraseña.</p>
       <p id="profile-error" class="form-error" role="alert"></p>
       <button class="button button--primary button--full" type="submit">Guardar perfil</button>
+      <hr class="danger-divider">
+      <p class="field-hint">Eliminar la cuenta borra permanentemente tu perfil y todos sus datos.</p>
+      <label for="delete-profile-password">Contraseña para eliminar la cuenta</label>
+      <input id="delete-profile-password" type="password" autocomplete="current-password">
+      <button id="delete-profile-button" class="button button--danger button--full" type="button">
+        Eliminar mi cuenta
+      </button>
     </form>
   </div>
 

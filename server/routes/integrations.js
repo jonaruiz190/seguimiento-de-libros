@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { Router } from "express";
 import { asyncHandler, requireAuth } from "../middleware.js";
-import { encryptSecret, hashOauthState } from "../integration-security.js";
+import {
+  decryptSecret,
+  encryptSecret,
+  hashOauthState
+} from "../integration-security.js";
 
 const SPOTIFY_AUTHORIZE = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN = "https://accounts.spotify.com/api/token";
+const SPOTIFY_API = "https://api.spotify.com/v1";
 
 function spotifyConfigured(config) {
   return Boolean(
@@ -75,14 +80,21 @@ export function createIntegrationsRouter({ pool, config }) {
   router.use(requireAuth(pool));
 
   router.get("/status", asyncHandler(async (request, response) => {
-    const connection = await pool.query(
-      "SELECT 1 FROM spotify_connections WHERE user_id = $1",
-      [request.user.id]
-    );
+    const [connection, profile] = await Promise.all([
+      pool.query(
+        "SELECT 1 FROM spotify_connections WHERE user_id = $1",
+        [request.user.id]
+      ),
+      pool.query(
+        "SELECT spotify_playlist_url FROM users WHERE id = $1",
+        [request.user.id]
+      )
+    ]);
     response.json({
       spotify: {
         configured: spotifyConfigured(config),
-        connected: connection.rowCount === 1
+        connected: connection.rowCount === 1,
+        playlistUrl: profile.rows[0]?.spotify_playlist_url || null
       },
       readingProviders: {
         progressSyncAvailable: false,
@@ -108,8 +120,37 @@ export function createIntegrationsRouter({ pool, config }) {
     url.searchParams.set("response_type", "code");
     url.searchParams.set("redirect_uri", config.spotifyRedirectUri);
     url.searchParams.set("state", state);
-    url.searchParams.set("scope", "user-read-playback-state user-modify-playback-state");
+    url.searchParams.set(
+      "scope",
+      "playlist-read-private playlist-read-collaborative user-read-playback-state user-modify-playback-state"
+    );
     response.redirect(url);
+  }));
+
+  router.get("/spotify/playlists", asyncHandler(async (request, response) => {
+    const accessToken = await getSpotifyAccessToken(pool, config, request.user.id);
+    if (!accessToken) {
+      return response.status(409).json({ error: "Conecta tu cuenta de Spotify primero." });
+    }
+    const spotifyResponse = await fetch(`${SPOTIFY_API}/me/playlists?limit=50`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!spotifyResponse.ok) {
+      return response.status(502).json({
+        error: "Spotify no pudo devolver tus playlists en este momento."
+      });
+    }
+    const payload = await spotifyResponse.json();
+    response.json({
+      playlists: (payload.items || []).map((playlist) => ({
+        id: playlist.id,
+        name: playlist.name,
+        owner: playlist.owner?.display_name || "",
+        image: playlist.images?.[0]?.url || null,
+        url: playlist.external_urls?.spotify || null
+      }))
+    });
   }));
 
   router.delete("/spotify", asyncHandler(async (request, response) => {
@@ -118,4 +159,51 @@ export function createIntegrationsRouter({ pool, config }) {
   }));
 
   return router;
+}
+
+async function getSpotifyAccessToken(pool, config, userId) {
+  const result = await pool.query(
+    `SELECT access_token_encrypted, refresh_token_encrypted, expires_at
+     FROM spotify_connections WHERE user_id = $1`,
+    [userId]
+  );
+  if (!result.rowCount) return null;
+  const connection = result.rows[0];
+  if (new Date(connection.expires_at).getTime() > Date.now() + 30_000) {
+    return decryptSecret(connection.access_token_encrypted, config.integrationEncryptionKey);
+  }
+  if (!connection.refresh_token_encrypted) return null;
+  const credentials = Buffer
+    .from(`${config.spotifyClientId}:${config.spotifyClientSecret}`)
+    .toString("base64");
+  const tokenResponse = await fetch(SPOTIFY_TOKEN, {
+    method: "POST",
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      Authorization: `Basic ${credentials}`,
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: decryptSecret(
+        connection.refresh_token_encrypted,
+        config.integrationEncryptionKey
+      )
+    })
+  });
+  if (!tokenResponse.ok) return null;
+  const tokens = await tokenResponse.json();
+  await pool.query(
+    `UPDATE spotify_connections
+     SET access_token_encrypted = $1,
+         expires_at = NOW() + ($2 * INTERVAL '1 second'),
+         updated_at = NOW()
+     WHERE user_id = $3`,
+    [
+      encryptSecret(tokens.access_token, config.integrationEncryptionKey),
+      tokens.expires_in,
+      userId
+    ]
+  );
+  return tokens.access_token;
 }
