@@ -117,6 +117,7 @@ npm run db:seed
 - `DELETE /api/tracking/:id`
 - `GET /api/dashboard`
 - `GET /api/catalog/search?q=...`
+- `GET /api/catalog/recommendations`
 - `POST /api/catalog/import`
 - `GET /api/integrations/status`
 - `GET /api/integrations/spotify/connect`

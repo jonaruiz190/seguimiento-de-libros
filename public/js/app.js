@@ -1,6 +1,7 @@
 const state = {
   user: null,
   books: [],
+  recommendations: [],
   tracking: [],
   dashboard: null,
   integrations: null,
@@ -203,6 +204,7 @@ async function enterApp(user) {
     api("/api/integrations/status")
   ]);
   state.books = booksResult.books;
+  state.recommendations = booksResult.books;
   state.tracking = trackingResult.tracking;
   state.integrations = integrationsResult;
 
@@ -217,6 +219,7 @@ async function enterApp(user) {
   updateStats();
   renderIntegrationStatus();
   showSpotifyCallbackMessage();
+  loadRecommendations();
 }
 
 async function logout() {
@@ -232,6 +235,7 @@ async function logout() {
 function resetToLogin() {
   state.user = null;
   state.books = [];
+  state.recommendations = [];
   state.tracking = [];
   state.dashboard = null;
   state.integrations = null;
@@ -348,7 +352,7 @@ async function showView(viewName) {
 
 function renderCategoryFilters() {
   const preferences = state.user?.preferences || [];
-  const allCategories = [...new Set(state.books.flatMap((book) => book.categories))];
+  const allCategories = [...new Set(state.recommendations.flatMap((book) => book.categories))];
   const categories = [
     "Todos",
     ...preferences,
@@ -373,7 +377,7 @@ function renderCategoryFilters() {
 
 function renderBooks() {
   const preferences = state.user?.preferences || [];
-  const filtered = state.books
+  const filtered = state.recommendations
     .filter((book) => state.category === "Todos" || book.categories.includes(state.category))
     .sort((a, b) => {
       const aMatch = a.categories.some((category) => preferences.includes(category)) ? 1 : 0;
@@ -382,13 +386,11 @@ function renderBooks() {
     });
 
   $("#recommendations-grid").innerHTML = filtered.map((book) => `
-    <article class="book-card" tabindex="0" role="button"
-      data-book-id="${escapeHtml(book.id)}"
-      aria-label="Ver detalles de ${escapeHtml(book.title)}">
+    <article class="book-card">
       <div class="book-card__cover-wrap">
         <img class="book-card__cover" src="${safeImageUrl(book.cover)}"
           alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
-        ${book.categories.some((category) => preferences.includes(category))
+        ${book.sourceId || book.categories.some((category) => preferences.includes(category))
           ? '<span class="book-card__badge">Para ti</span>'
           : ""}
       </div>
@@ -398,17 +400,40 @@ function renderBooks() {
         <span class="stars">${ratingStars(book.rating)}</span>
         <span>${escapeHtml(book.year)}</span>
       </div>
+      ${book.sourceId ? `
+        <button class="button button--secondary book-card__action" type="button"
+          data-import-recommendation="${escapeHtml(book.sourceId)}"
+          ${book.imported ? "disabled" : ""}>
+          ${book.imported ? "En tu biblioteca" : "+ Agregar a mi biblioteca"}
+        </button>
+      ` : `
+        <button class="button button--secondary book-card__action" type="button"
+          data-book-id="${escapeHtml(book.id)}">Ver detalles</button>
+      `}
     </article>
   `).join("");
 
   $("#empty-search").classList.toggle("is-hidden", filtered.length > 0);
   attachImageFallbacks($("#recommendations-grid"));
-  $$("[data-book-id]").forEach((card) => {
-    card.addEventListener("click", () => openBookModal(card.dataset.bookId));
-    card.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") openBookModal(card.dataset.bookId);
-    });
+  $$("[data-book-id]").forEach((button) => {
+    button.addEventListener("click", () => openBookModal(button.dataset.bookId));
   });
+  $$("[data-import-recommendation]").forEach((button) => {
+    button.addEventListener("click", () => importCatalogBook(button));
+  });
+}
+
+async function loadRecommendations() {
+  try {
+    const result = await api("/api/catalog/recommendations");
+    state.recommendations = result.books;
+    state.category = "Todos";
+    renderCategoryFilters();
+    renderBooks();
+  } catch (error) {
+    console.error(error);
+    showToast("Usando recomendaciones locales temporalmente.");
+  }
 }
 
 function openBookModal(bookId) {
@@ -672,15 +697,20 @@ function renderCatalogResults(books) {
 }
 
 async function importCatalogBook(button) {
+  const sourceId = button.dataset.importBook || button.dataset.importRecommendation;
   button.disabled = true;
   button.textContent = "Agregando...";
   try {
     const result = await api("/api/catalog/import", {
       method: "POST",
-      body: JSON.stringify({ sourceId: button.dataset.importBook })
+      body: JSON.stringify({ sourceId })
     });
     const booksResult = await api("/api/books");
     state.books = booksResult.books;
+    const recommendation = state.recommendations.find(
+      (book) => book.sourceId === sourceId
+    );
+    if (recommendation) recommendation.imported = true;
     populateBookSelect();
     renderCategoryFilters();
     renderBooks();
