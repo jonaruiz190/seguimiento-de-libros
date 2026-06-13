@@ -20,8 +20,10 @@ try {
     for (const book of books) {
       await client.query(
         `INSERT INTO books
-          (id, title, author, publication_year, pages, rating, cover_url, synopsis)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          (id, title, author, publication_year, pages, rating, cover_url, synopsis,
+           isbn_13, catalog_source, preview_url, apple_books_url, kindle_url,
+           metadata_synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'manual', $10, $11, $12, NOW())
          ON CONFLICT (id) DO UPDATE SET
            title = EXCLUDED.title,
            author = EXCLUDED.author,
@@ -30,6 +32,10 @@ try {
            rating = EXCLUDED.rating,
            cover_url = EXCLUDED.cover_url,
            synopsis = EXCLUDED.synopsis,
+           isbn_13 = EXCLUDED.isbn_13,
+           preview_url = EXCLUDED.preview_url,
+           apple_books_url = EXCLUDED.apple_books_url,
+           kindle_url = EXCLUDED.kindle_url,
            updated_at = NOW()`,
         [
           book.id,
@@ -39,7 +45,11 @@ try {
           book.pages,
           book.rating,
           book.cover,
-          book.synopsis
+          book.synopsis,
+          book.isbn13,
+          `https://books.google.com/books?vid=ISBN${book.isbn13}`,
+          `https://books.apple.com/us/search?term=${book.isbn13}`,
+          `https://www.amazon.com/s?k=${book.isbn13}&i=stripbooks`
         ]
       );
       await client.query("DELETE FROM book_categories WHERE book_id = $1", [book.id]);

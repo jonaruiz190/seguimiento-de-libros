@@ -12,6 +12,7 @@
     "start": "node server/server.js",
     "db:migrate": "node server/scripts/migrate.js",
     "db:seed": "node server/scripts/seed.js",
+    "catalog:refresh": "node server/scripts/refresh-catalog.js",
     "test": "node --test",
     "check": "node --check server/server.js && node --check server/app.js && node --check public/js/app.js"
   },

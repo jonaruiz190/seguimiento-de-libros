@@ -24,6 +24,10 @@ services:
       APP_ORIGIN: http://localhost:3000
       SESSION_DAYS: 7
       TRUST_PROXY: 0
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:3000/api/integrations/spotify/callback}
+      INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
     ports:
       - "3000:3000"
     depends_on:

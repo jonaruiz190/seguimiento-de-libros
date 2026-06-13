@@ -22,6 +22,11 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 - Registro de fechas de inicio/finalización y tiempo dedicado.
 - Creación, edición y eliminación de registros.
 - Vista detallada de cada libro.
+- Reproductor de Spotify en la barra superior y OAuth opcional.
+- Enlaces para continuar leyendo en Kindle, Apple Books, Google Books u otra plataforma.
+- Página actual y proveedor de lectura por cada seguimiento.
+- Búsqueda e importación de datos reales desde Open Library.
+- Actualización periódica de metadatos con `npm run catalog:refresh`.
 - Portadas incluidas como recursos locales para evitar dependencias externas en ejecución.
 - Persistencia por usuario en la base de datos.
 - Diseño responsive.
@@ -82,6 +87,7 @@ Instala dependencias, prepara la base de datos e inicia el servidor:
 npm install
 npm run db:migrate
 npm run db:seed
+npm run catalog:refresh
 npm run dev
 ```
 
@@ -108,6 +114,11 @@ npm run db:seed
 - `PUT /api/tracking/:id`
 - `DELETE /api/tracking/:id`
 - `GET /api/dashboard`
+- `GET /api/catalog/search?q=...`
+- `POST /api/catalog/import`
+- `GET /api/integrations/status`
+- `GET /api/integrations/spotify/connect`
+- `GET /api/integrations/spotify/callback`
 
 ## Configuración
 
@@ -118,6 +129,20 @@ Consulta `.env.example`.
 - `SESSION_DAYS`: duración de las sesiones.
 - `TRUST_PROXY`: usa `1` si la plataforma termina HTTPS mediante un proxy.
 - `NODE_ENV=production`: activa cookies `Secure` y configuración de producción.
+- `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET`: credenciales de una app de Spotify.
+- `SPOTIFY_REDIRECT_URI`: callback registrado exactamente en Spotify.
+- `INTEGRATION_ENCRYPTION_KEY`: secreto largo y aleatorio para cifrar tokens OAuth.
+
+Kindle y Apple Books no ofrecen una API pública para leer el progreso personal del
+usuario. La aplicación guarda manualmente la página actual y un enlace al libro,
+sin solicitar ni almacenar contraseñas de esas plataformas.
+
+Para mantener actualizados los libros importados, programa diariamente o
+semanalmente:
+
+```bash
+npm run catalog:refresh
+```
 
 ## Producción
 

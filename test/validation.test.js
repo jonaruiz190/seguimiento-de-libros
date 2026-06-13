@@ -41,7 +41,10 @@ test("rechaza estados y puntuaciones inválidos", () => {
     format: "Digital",
     startedAt: null,
     finishedAt: null,
-    readingMinutes: 0
+    readingMinutes: 0,
+    readingProvider: null,
+    readingUrl: null,
+    currentPage: null
   }), /no son válidos/);
 });
 
@@ -54,6 +57,9 @@ test("rechaza una finalización anterior al inicio", () => {
     format: "Digital",
     startedAt: "2026-06-10",
     finishedAt: "2026-06-01",
-    readingMinutes: 600
+    readingMinutes: 600,
+    readingProvider: "Kindle",
+    readingUrl: "https://read.amazon.com/",
+    currentPage: 120
   }), /no son válidos/);
 });

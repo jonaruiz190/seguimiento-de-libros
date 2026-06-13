@@ -344,7 +344,87 @@ textarea:focus {
 
 .user-menu {
   position: relative;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
   justify-self: end;
+  gap: 16px;
+}
+
+.listen-button {
+  display: inline-flex;
+  padding: 9px 13px;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.listen-button span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  color: white;
+  background: #1db954;
+  border-radius: 50%;
+  font-size: 0.58rem;
+}
+
+.spotify-panel {
+  position: fixed;
+  z-index: 45;
+  top: 88px;
+  right: clamp(18px, 5vw, 74px);
+  width: min(410px, calc(100vw - 36px));
+  padding: 24px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.spotify-panel__heading {
+  display: flex;
+  padding-right: 36px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.spotify-panel__heading h2 {
+  font-size: 1.65rem;
+}
+
+.spotify-panel iframe {
+  border: 0;
+  border-radius: 10px;
+}
+
+.spotify-panel__connection {
+  display: flex;
+  margin-top: 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.spotify-panel__connection p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.spotify-panel__connection .button {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
 }
 
 .user-button {
@@ -599,6 +679,11 @@ main {
 .page-heading > div > p:last-child {
   margin-bottom: 0;
   color: var(--muted);
+}
+
+.page-heading__actions {
+  display: flex;
+  gap: 10px;
 }
 
 .tracking-toolbar {
@@ -1121,6 +1206,26 @@ tr:last-child td {
   gap: 7px;
 }
 
+.reading-progress {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  color: var(--green);
+  background: var(--sage);
+  border-radius: 7px;
+  font-size: 0.84rem;
+}
+
+.reading-links {
+  display: flex;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.reading-links .button {
+  text-decoration: none;
+}
+
 .tag {
   padding: 6px 10px;
   color: var(--green);
@@ -1135,6 +1240,66 @@ tr:last-child td {
   width: min(540px, 100%);
   padding: 42px;
   gap: 10px;
+}
+
+.catalog-modal {
+  width: min(880px, 100%);
+  padding: 42px;
+}
+
+.catalog-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.catalog-search .search-box {
+  box-shadow: none;
+}
+
+.catalog-message {
+  margin: 20px 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.catalog-results {
+  display: grid;
+  gap: 10px;
+}
+
+.catalog-book {
+  display: grid;
+  padding: 12px;
+  align-items: center;
+  grid-template-columns: 58px 1fr auto;
+  gap: 15px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.catalog-book img {
+  width: 58px;
+  height: 82px;
+  object-fit: cover;
+  background: #e2dfd6;
+  border-radius: 2px 6px 6px 2px;
+}
+
+.catalog-book h3 {
+  margin-bottom: 4px;
+  font-size: 1rem;
+}
+
+.catalog-book p {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.catalog-book small {
+  color: var(--muted);
+  font-size: 0.7rem;
 }
 
 .modal__content--form h2 {
@@ -1285,6 +1450,22 @@ tr:last-child td {
     display: none;
   }
 
+  .listen-button {
+    padding: 7px;
+    font-size: 0;
+  }
+
+  .listen-button span {
+    width: 25px;
+    height: 25px;
+  }
+
+  .spotify-panel {
+    top: 76px;
+    right: 12px;
+    width: calc(100vw - 24px);
+  }
+
   .brand__mark {
     width: 34px;
     height: 39px;
@@ -1336,6 +1517,10 @@ tr:last-child td {
   .page-heading,
   .tracking-toolbar {
     align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-heading__actions {
     flex-direction: column;
   }
 
@@ -1438,6 +1623,36 @@ tr:last-child td {
 
   .modal__content--form {
     padding: 36px 22px 24px;
+  }
+
+  .catalog-modal {
+    padding: 36px 20px 24px;
+  }
+
+  .catalog-search {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-book {
+    grid-template-columns: 48px 1fr;
+  }
+
+  .catalog-book img {
+    width: 48px;
+    height: 70px;
+  }
+
+  .catalog-book .button {
+    grid-column: 1 / -1;
+  }
+
+  .spotify-panel {
+    padding: 18px;
+  }
+
+  .spotify-panel__connection {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .dashboard-view {

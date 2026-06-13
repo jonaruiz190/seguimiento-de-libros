@@ -3,6 +3,7 @@ const state = {
   books: [],
   tracking: [],
   dashboard: null,
+  integrations: null,
   category: "Todos",
   search: "",
   trackingSearch: "",
@@ -45,6 +46,11 @@ function bindEvents() {
     renderTracking();
   });
   $("#add-book-button").addEventListener("click", () => openTrackingModal());
+  $("#catalog-button").addEventListener("click", openCatalogModal);
+  $("#catalog-search-form").addEventListener("submit", searchCatalog);
+  $("#spotify-button").addEventListener("click", toggleSpotifyPanel);
+  $("#close-spotify").addEventListener("click", closeSpotifyPanel);
+  $("#spotify-connect").addEventListener("click", connectSpotify);
   $("#tracking-form").addEventListener("submit", saveTracking);
   $("#tracking-status").addEventListener("change", applyDateDefaults);
   $("#refresh-dashboard").addEventListener("click", () => loadDashboard(true));
@@ -67,6 +73,9 @@ function bindEvents() {
   $$("[data-close-register]").forEach((element) => {
     element.addEventListener("click", closeRegisterModal);
   });
+  $$("[data-close-catalog]").forEach((element) => {
+    element.addEventListener("click", closeCatalogModal);
+  });
   $$("input[name='preference']").forEach((checkbox) => {
     checkbox.addEventListener("change", enforcePreferenceLimit);
   });
@@ -76,6 +85,8 @@ function bindEvents() {
       closeBookModal();
       closeTrackingModal();
       closeRegisterModal();
+      closeCatalogModal();
+      closeSpotifyPanel();
     }
   });
 }
@@ -178,12 +189,14 @@ async function handleLogin(event) {
 
 async function enterApp(user) {
   state.user = user;
-  const [booksResult, trackingResult] = await Promise.all([
+  const [booksResult, trackingResult, integrationsResult] = await Promise.all([
     api("/api/books"),
-    api("/api/tracking")
+    api("/api/tracking"),
+    api("/api/integrations/status")
   ]);
   state.books = booksResult.books;
   state.tracking = trackingResult.tracking;
+  state.integrations = integrationsResult;
 
   $("#login-screen").classList.add("is-hidden");
   $("#app").classList.remove("is-hidden");
@@ -195,6 +208,8 @@ async function enterApp(user) {
   renderBooks();
   renderTracking();
   updateStats();
+  renderIntegrationStatus();
+  showSpotifyCallbackMessage();
 }
 
 async function logout() {
@@ -212,6 +227,7 @@ function resetToLogin() {
   state.books = [];
   state.tracking = [];
   state.dashboard = null;
+  state.integrations = null;
   $("#app").classList.add("is-hidden");
   $("#login-screen").classList.remove("is-hidden");
   $("#logout-button").classList.add("is-hidden");
@@ -224,6 +240,57 @@ function toggleUserMenu() {
   const expanded = !menu.classList.contains("is-hidden");
   menu.classList.toggle("is-hidden", expanded);
   $("#user-button").setAttribute("aria-expanded", String(!expanded));
+}
+
+function toggleSpotifyPanel() {
+  const panel = $("#spotify-panel");
+  const opening = panel.classList.contains("is-hidden");
+  panel.classList.toggle("is-hidden", !opening);
+  $("#spotify-button").setAttribute("aria-expanded", String(opening));
+}
+
+function closeSpotifyPanel() {
+  $("#spotify-panel").classList.add("is-hidden");
+  $("#spotify-button").setAttribute("aria-expanded", "false");
+}
+
+function renderIntegrationStatus() {
+  const spotify = state.integrations?.spotify;
+  const button = $("#spotify-connect");
+  if (spotify?.connected) {
+    $("#spotify-status").textContent = "Tu cuenta de Spotify está conectada.";
+    button.textContent = "Spotify conectado";
+    button.disabled = true;
+  } else if (spotify?.configured) {
+    $("#spotify-status").textContent =
+      "Conecta tu cuenta para habilitar controles personales en una siguiente etapa.";
+    button.textContent = "Conectar mi Spotify";
+    button.disabled = false;
+  } else {
+    $("#spotify-status").textContent =
+      "El reproductor funciona sin configuración. La conexión personal requiere credenciales de Spotify.";
+    button.textContent = "Configurar Spotify";
+    button.disabled = false;
+  }
+}
+
+function connectSpotify() {
+  if (!state.integrations?.spotify?.configured) {
+    showToast("Faltan las credenciales de Spotify en el servidor.");
+    return;
+  }
+  window.location.assign("/api/integrations/spotify/connect");
+}
+
+function showSpotifyCallbackMessage() {
+  const url = new URL(window.location.href);
+  const result = url.searchParams.get("spotify");
+  if (!result) return;
+  showToast(result === "connected"
+    ? "Spotify quedó conectado correctamente."
+    : "No se pudo completar la conexión con Spotify.");
+  url.searchParams.delete("spotify");
+  window.history.replaceState({}, "", url);
 }
 
 function greeting() {
@@ -316,6 +383,7 @@ function openBookModal(bookId) {
   const book = findBook(bookId);
   if (!book) return;
   const tracked = state.tracking.find((item) => item.bookId === book.id);
+  const readingLinks = getReadingLinks(book, tracked);
 
   $("#book-detail").innerHTML = `
     <div class="book-detail">
@@ -336,6 +404,22 @@ function openBookModal(bookId) {
         <div class="tags">${book.categories
           .map((category) => `<span class="tag">${escapeHtml(category)}</span>`)
           .join("")}</div>
+        ${tracked?.currentPage
+          ? `<p class="reading-progress">Vas por la página <strong>${tracked.currentPage}</strong>
+              de ${escapeHtml(book.pages)}.</p>`
+          : ""}
+        ${readingLinks.length ? `
+          <div class="reading-links">
+            ${readingLinks.map((link, index) => `
+              <a class="button ${index === 0 ? "button--primary" : "button--secondary"}"
+                href="${safeExternalUrl(link.url)}" target="_blank" rel="noopener noreferrer">
+                ${escapeHtml(index === 0 && tracked?.readingUrl
+                  ? "Continuar leyendo"
+                  : `Abrir en ${link.label}`)}
+              </a>
+            `).join("")}
+          </div>
+        ` : ""}
         <button class="button button--primary" id="detail-track-button" type="button">
           ${tracked ? "Editar mi seguimiento" : "+ Añadir a mi seguimiento"}
         </button>
@@ -350,6 +434,20 @@ function openBookModal(bookId) {
   });
   $("#book-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
+}
+
+function getReadingLinks(book, tracked) {
+  const links = [];
+  if (tracked?.readingUrl) {
+    links.push({ label: tracked.readingProvider || "mi aplicación", url: tracked.readingUrl });
+  }
+  if (book.appleBooksUrl) links.push({ label: "Apple Books", url: book.appleBooksUrl });
+  if (book.kindleUrl) links.push({ label: "Kindle", url: book.kindleUrl });
+  if (book.previewUrl) links.push({ label: "Google Books", url: book.previewUrl });
+  return links.filter((link, index, all) =>
+    safeExternalUrl(link.url) &&
+    all.findIndex((candidate) => candidate.url === link.url) === index
+  );
 }
 
 function closeBookModal() {
@@ -378,6 +476,9 @@ function openTrackingModal(trackingId = null, preferredBookId = null) {
   $("#tracking-hours").value = item?.readingMinutes
     ? formatDecimal(item.readingMinutes / 60)
     : "";
+  $("#tracking-provider").value = item?.readingProvider || "";
+  $("#tracking-url").value = item?.readingUrl || "";
+  $("#tracking-current-page").value = item?.currentPage || "";
   $("#tracking-modal-title").textContent = item ? "Editar seguimiento" : "Añadir a mi seguimiento";
   if (!item) applyDateDefaults();
   $("#tracking-modal").classList.remove("is-hidden");
@@ -393,7 +494,8 @@ function closeTrackingModal() {
 function restoreBodyScroll() {
   if ($("#book-modal").classList.contains("is-hidden")
       && $("#tracking-modal").classList.contains("is-hidden")
-      && $("#register-modal").classList.contains("is-hidden")) {
+      && $("#register-modal").classList.contains("is-hidden")
+      && $("#catalog-modal").classList.contains("is-hidden")) {
     document.body.style.overflow = "";
   }
 }
@@ -409,7 +511,10 @@ async function saveTracking(event) {
     format: $("#tracking-format").value,
     startedAt: $("#tracking-started-at").value || null,
     finishedAt: $("#tracking-finished-at").value || null,
-    readingMinutes: Math.round((Number($("#tracking-hours").value) || 0) * 60)
+    readingMinutes: Math.round((Number($("#tracking-hours").value) || 0) * 60),
+    readingProvider: $("#tracking-provider").value || null,
+    readingUrl: $("#tracking-url").value.trim() || null,
+    currentPage: Number($("#tracking-current-page").value) || null
   };
 
   try {
@@ -427,6 +532,86 @@ async function saveTracking(event) {
     closeTrackingModal();
     showToast(existingId ? "Seguimiento actualizado." : "Libro añadido a tu seguimiento.");
   } catch (error) {
+    showToast(error.message);
+  }
+}
+
+function openCatalogModal() {
+  $("#catalog-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  $("#catalog-search").focus();
+}
+
+function closeCatalogModal() {
+  $("#catalog-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+async function searchCatalog(event) {
+  event.preventDefault();
+  const query = $("#catalog-search").value.trim();
+  const message = $("#catalog-message");
+  const submit = $("#catalog-search-form button[type='submit']");
+  message.textContent = "Buscando en Open Library...";
+  submit.disabled = true;
+  $("#catalog-results").innerHTML = "";
+
+  try {
+    const result = await api(`/api/catalog/search?q=${encodeURIComponent(query)}`);
+    renderCatalogResults(result.books);
+    message.textContent = result.books.length
+      ? `${result.books.length} resultados encontrados.`
+      : "No se encontraron libros con esa búsqueda.";
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function renderCatalogResults(books) {
+  $("#catalog-results").innerHTML = books.map((book) => `
+    <article class="catalog-book">
+      <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
+      <div>
+        <h3>${escapeHtml(book.title)}</h3>
+        <p>${escapeHtml(book.author)}</p>
+        <small>${escapeHtml(book.year)} · ${escapeHtml(book.pages)} páginas
+          ${book.isbn13 ? ` · ISBN ${escapeHtml(book.isbn13)}` : ""}</small>
+      </div>
+      <button class="button button--secondary" type="button"
+        data-import-book="${escapeHtml(book.sourceId)}">Agregar</button>
+    </article>
+  `).join("");
+  attachImageFallbacks($("#catalog-results"));
+  $$("[data-import-book]").forEach((button) => {
+    button.addEventListener("click", () => importCatalogBook(button));
+  });
+}
+
+async function importCatalogBook(button) {
+  button.disabled = true;
+  button.textContent = "Agregando...";
+  try {
+    const result = await api("/api/catalog/import", {
+      method: "POST",
+      body: JSON.stringify({ sourceId: button.dataset.importBook })
+    });
+    const booksResult = await api("/api/books");
+    state.books = booksResult.books;
+    populateBookSelect();
+    renderCategoryFilters();
+    renderBooks();
+    button.textContent = "Agregado";
+    showToast("Libro agregado con datos del catálogo real.");
+    const imported = findBook(result.id);
+    if (imported) {
+      closeCatalogModal();
+      openBookModal(imported.id);
+    }
+  } catch (error) {
+    button.disabled = false;
+    button.textContent = "Agregar";
     showToast(error.message);
   }
 }
@@ -695,6 +880,15 @@ function safeImageUrl(value) {
     const url = new URL(value, window.location.origin);
     const allowed = url.origin === window.location.origin || url.protocol === "https:";
     return allowed ? escapeHtml(url.href) : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? escapeHtml(url.href) : "";
   } catch {
     return "";
   }

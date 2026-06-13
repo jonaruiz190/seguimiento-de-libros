@@ -55,15 +55,43 @@
         <button class="nav-link" type="button" data-view="tracking">Mi seguimiento</button>
         <button class="nav-link" type="button" data-view="dashboard">Dashboard</button>
       </nav>
-      <div class="user-menu">
-        <button id="user-button" class="user-button" type="button" aria-expanded="false">
-          <span id="user-avatar" class="avatar">A</span>
-          <span id="user-name" class="user-button__name">Lector</span>
-          <span aria-hidden="true">⌄</span>
+      <div class="topbar-actions">
+        <button id="spotify-button" class="listen-button" type="button" aria-expanded="false">
+          <span aria-hidden="true">▶</span> Escuchar
         </button>
-        <button id="logout-button" class="logout-button is-hidden" type="button">Cerrar sesión</button>
+        <div class="user-menu">
+          <button id="user-button" class="user-button" type="button" aria-expanded="false">
+            <span id="user-avatar" class="avatar">A</span>
+            <span id="user-name" class="user-button__name">Lector</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+          <button id="logout-button" class="logout-button is-hidden" type="button">Cerrar sesión</button>
+        </div>
       </div>
     </header>
+
+    <aside id="spotify-panel" class="spotify-panel is-hidden" aria-labelledby="spotify-title">
+      <div class="spotify-panel__heading">
+        <div>
+          <p class="eyebrow">Banda sonora de lectura</p>
+          <h2 id="spotify-title">Escucha mientras lees</h2>
+        </div>
+        <button id="close-spotify" class="modal__close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <iframe
+        title="Reproductor de Spotify"
+        src="https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator"
+        width="100%"
+        height="352"
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"></iframe>
+      <div class="spotify-panel__connection">
+        <p id="spotify-status">Puedes reproducir la lista sin conectar tu cuenta.</p>
+        <button id="spotify-connect" class="button button--secondary" type="button">
+          Conectar mi Spotify
+        </button>
+      </div>
+    </aside>
 
     <main>
       <section id="home-view" class="view">
@@ -113,7 +141,12 @@
             <h1>Mi seguimiento</h1>
             <p>Organiza tus lecturas, puntúa tus favoritas y guarda tus impresiones.</p>
           </div>
-          <button id="add-book-button" class="button button--primary" type="button">+ Añadir libro</button>
+          <div class="page-heading__actions">
+            <button id="catalog-button" class="button button--secondary" type="button">
+              Buscar catálogo real
+            </button>
+            <button id="add-book-button" class="button button--primary" type="button">+ Añadir libro</button>
+          </div>
         </div>
 
         <div class="tracking-toolbar">
@@ -301,8 +334,51 @@
       <input id="tracking-hours" type="number" min="0" max="16666" step="0.25"
         inputmode="decimal" placeholder="Ejemplo: 12.5">
       <p class="field-hint">Puedes actualizar este valor mientras avanzas en la lectura.</p>
+      <div class="form-grid">
+        <label>Aplicación de lectura
+          <select id="tracking-provider">
+            <option value="">Ninguna</option>
+            <option>Kindle</option>
+            <option>Apple Books</option>
+            <option>Google Books</option>
+            <option>Otro</option>
+          </select>
+        </label>
+        <label>Página actual
+          <input id="tracking-current-page" type="number" min="1" inputmode="numeric"
+            placeholder="Ejemplo: 127">
+        </label>
+      </div>
+      <label for="tracking-url">Enlace para continuar leyendo</label>
+      <input id="tracking-url" type="url" maxlength="2000"
+        placeholder="https://read.amazon.com/...">
+      <p class="field-hint">
+        Pega el enlace del libro en Kindle, Apple Books u otra plataforma para abrirlo directamente.
+      </p>
       <button class="button button--primary button--full" type="submit">Guardar seguimiento</button>
     </form>
+  </div>
+
+  <div id="catalog-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="catalog-title">
+    <div class="modal__backdrop" data-close-catalog></div>
+    <section class="modal__content catalog-modal">
+      <button class="modal__close" type="button" data-close-catalog aria-label="Cerrar">×</button>
+      <p class="eyebrow">Open Library</p>
+      <h2 id="catalog-title">Agregar libros con datos reales</h2>
+      <form id="catalog-search-form" class="catalog-search">
+        <label class="search-box" for="catalog-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="catalog-search" type="search" minlength="2"
+            placeholder="Título, autor o ISBN" required>
+        </label>
+        <button class="button button--primary" type="submit">Buscar</button>
+      </form>
+      <p id="catalog-message" class="catalog-message">
+        Busca un libro y agrégalo al catálogo de tu aplicación.
+      </p>
+      <div id="catalog-results" class="catalog-results"></div>
+    </section>
   </div>
 
   <div id="register-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="register-title">

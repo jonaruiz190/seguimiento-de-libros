@@ -25,7 +25,10 @@ export const trackingSchema = z.object({
   format: z.enum(["Físico", "Digital"]),
   startedAt: z.iso.date().nullable(),
   finishedAt: z.iso.date().nullable(),
-  readingMinutes: z.number().int().min(0).max(1000000)
+  readingMinutes: z.number().int().min(0).max(1000000),
+  readingProvider: z.enum(["Kindle", "Apple Books", "Google Books", "Otro"]).nullable(),
+  readingUrl: z.url().max(2000).nullable(),
+  currentPage: z.number().int().min(1).max(1000000).nullable()
 }).strict().superRefine((item, context) => {
   if (item.startedAt && item.finishedAt && item.finishedAt < item.startedAt) {
     context.addIssue({
@@ -35,6 +38,14 @@ export const trackingSchema = z.object({
     });
   }
 });
+
+export const catalogSearchSchema = z.object({
+  q: z.string().trim().min(2).max(150)
+}).strict();
+
+export const catalogImportSchema = z.object({
+  sourceId: z.string().trim().regex(/^[A-Za-z0-9_-]+$/).max(100)
+}).strict();
 
 export function validate(schema, input) {
   const result = schema.safeParse(input);

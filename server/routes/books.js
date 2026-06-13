@@ -9,6 +9,9 @@ export function createBooksRouter({ pool }) {
     const result = await pool.query(
       `SELECT b.id, b.title, b.author, b.publication_year AS year, b.pages,
               b.rating::float, b.cover_url AS cover, b.synopsis,
+              b.isbn_13 AS "isbn13", b.publisher, b.language,
+              b.catalog_source AS "catalogSource", b.preview_url AS "previewUrl",
+              b.apple_books_url AS "appleBooksUrl", b.kindle_url AS "kindleUrl",
               COALESCE(
                 ARRAY_AGG(bc.category ORDER BY bc.category)
                 FILTER (WHERE bc.category IS NOT NULL),

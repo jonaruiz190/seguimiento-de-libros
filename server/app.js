@@ -6,6 +6,8 @@ import { createAuthRouter } from "./routes/auth.js";
 import { createBooksRouter } from "./routes/books.js";
 import { createTrackingRouter } from "./routes/tracking.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
+import { createCatalogRouter } from "./routes/catalog.js";
+import { createIntegrationsRouter } from "./routes/integrations.js";
 import {
   errorHandler,
   notFound,
@@ -28,10 +30,12 @@ export function createApp({ pool, config }) {
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: [
           "'self'",
-          "data:"
+          "data:",
+          "https://covers.openlibrary.org"
         ],
         scriptSrc: ["'self'"],
         connectSrc: ["'self'"],
+        frameSrc: ["'self'", "https://open.spotify.com"],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"]
@@ -54,6 +58,8 @@ export function createApp({ pool, config }) {
   app.use("/api/books", createBooksRouter({ pool, config }));
   app.use("/api/tracking", createTrackingRouter({ pool, config }));
   app.use("/api/dashboard", createDashboardRouter({ pool, config }));
+  app.use("/api/catalog", createCatalogRouter({ pool, config }));
+  app.use("/api/integrations", createIntegrationsRouter({ pool, config }));
 
   app.use(express.static(publicDirectory, {
     extensions: ["html"],

@@ -7,6 +7,11 @@ import {
   parseCookies,
   verifyPassword
 } from "../server/security.js";
+import {
+  decryptSecret,
+  encryptSecret,
+  hashOauthState
+} from "../server/integration-security.js";
 
 test("hashPassword crea hashes con sal y verifica la contraseña correcta", async () => {
   const first = await hashPassword("una-clave-segura");
@@ -32,4 +37,11 @@ test("parseCookies interpreta cookies sin perder valores con signos igual", () =
     sid: "abc=123",
     theme: "dark"
   });
+});
+
+test("cifra tokens externos y permite recuperarlos con la clave correcta", () => {
+  const encrypted = encryptSecret("spotify-token", "clave-de-prueba");
+  assert.notEqual(encrypted, "spotify-token");
+  assert.equal(decryptSecret(encrypted, "clave-de-prueba"), "spotify-token");
+  assert.match(hashOauthState("estado"), /^[a-f0-9]{64}$/);
 });
