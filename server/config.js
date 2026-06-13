@@ -28,6 +28,8 @@ export function loadConfig() {
     integrationEncryptionKey: process.env.INTEGRATION_ENCRYPTION_KEY || "",
     translationApiUrl: process.env.TRANSLATION_API_URL || "",
     translationApiKey: process.env.TRANSLATION_API_KEY || "",
-    nytBooksApiKey: process.env.NYT_BOOKS_API_KEY || ""
+    nytBooksApiKey: process.env.NYT_BOOKS_API_KEY || "",
+    resendApiKey: process.env.RESEND_API_KEY || "",
+    emailFrom: process.env.EMAIL_FROM || ""
   };
 }

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { Router } from "express";
 import { asyncHandler, requireAuth } from "../middleware.js";
+import { spotifySearchSchema, validate } from "../validation.js";
 import {
   decryptSecret,
   encryptSecret,
@@ -149,6 +150,43 @@ export function createIntegrationsRouter({ pool, config }) {
         owner: playlist.owner?.display_name || "",
         image: playlist.images?.[0]?.url || null,
         url: playlist.external_urls?.spotify || null
+      }))
+    });
+  }));
+
+  router.get("/spotify/search", asyncHandler(async (request, response) => {
+    const input = validate(spotifySearchSchema, request.query);
+    const accessToken = await getSpotifyAccessToken(pool, config, request.user.id);
+    if (!accessToken) {
+      return response.status(409).json({ error: "Conecta tu cuenta de Spotify primero." });
+    }
+    const url = new URL(`${SPOTIFY_API}/search`);
+    url.searchParams.set("q", input.q);
+    url.searchParams.set("type", input.type);
+    url.searchParams.set("limit", "10");
+    const spotifyResponse = await fetch(url, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!spotifyResponse.ok) {
+      return response.status(502).json({ error: "Spotify no pudo completar la búsqueda." });
+    }
+    const payload = await spotifyResponse.json();
+    const items = input.type === "track"
+      ? payload.tracks?.items || []
+      : payload.playlists?.items || [];
+    response.json({
+      items: items.filter(Boolean).map((item) => ({
+        id: item.id,
+        type: input.type,
+        name: item.name,
+        subtitle: input.type === "track"
+          ? (item.artists || []).map((artist) => artist.name).join(", ")
+          : item.owner?.display_name || "",
+        image: input.type === "track"
+          ? item.album?.images?.[0]?.url || null
+          : item.images?.[0]?.url || null,
+        url: item.external_urls?.spotify || null
       }))
     });
   }));

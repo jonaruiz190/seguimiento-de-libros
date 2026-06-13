@@ -77,7 +77,8 @@ export const profileSchema = z.object({
 
 export const catalogSearchSchema = z.object({
   q: z.string().trim().min(2).max(150),
-  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional()
+  language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional(),
+  source: z.enum(["books", "anilist", "all"]).default("all")
 }).strict();
 
 export const recommendationSchema = z.object({
@@ -99,8 +100,39 @@ export const deleteProfileSchema = z.object({
 }).strict();
 
 export const catalogImportSchema = z.object({
-  sourceId: z.string().trim().regex(/^[A-Za-z0-9_-]+$/).max(100)
+  sourceId: z.string().trim().regex(/^[A-Za-z0-9_-]+$/).max(100),
+  source: z.enum(["openlibrary", "anilist"]).default("openlibrary")
 }).strict();
+
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase())
+}).strict();
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(32).max(200),
+  password: strongPassword
+}).strict();
+
+export const spotifySearchSchema = z.object({
+  q: z.string().trim().min(2).max(100),
+  type: z.enum(["playlist", "track"]).default("playlist")
+}).strict();
+
+export const dashboardFilterSchema = z.object({
+  from: z.iso.date().optional(),
+  to: z.iso.date().optional(),
+  format: z.enum(["Físico", "Digital"]).optional(),
+  provider: z.enum(["Kindle", "Apple Books", "Google Books", "Otro"]).optional(),
+  status: z.enum(["Leyendo", "Próximo a leer", "Leído"]).optional()
+}).strict().superRefine((item, context) => {
+  if (item.from && item.to && item.to < item.from) {
+    context.addIssue({
+      code: "custom",
+      path: ["to"],
+      message: "La fecha final no puede ser anterior a la inicial."
+    });
+  }
+});
 
 export function validate(schema, input) {
   const result = schema.safeParse(input);

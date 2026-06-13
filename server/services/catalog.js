@@ -1,3 +1,5 @@
+import { cached } from "../cache.js";
+
 const OPEN_LIBRARY_SEARCH = "https://openlibrary.org/search.json";
 const OPEN_LIBRARY_BOOK = "https://openlibrary.org";
 const APPLE_SEARCH = "https://itunes.apple.com/search";
@@ -107,7 +109,7 @@ export async function searchOpenLibrary(query, limit = 12, options = {}) {
     "fields",
     "key,title,author_name,first_publish_year,number_of_pages_median,isbn,subject,cover_i,language,publisher,ratings_average,ratings_count,want_to_read_count,already_read_count"
   );
-  const payload = await fetchJson(url);
+  const payload = await cached(`openlibrary:${url}`, 30 * 60_000, () => fetchJson(url));
   return (payload.docs || [])
     .map(normalizeOpenLibraryBook)
     .filter((book) => book.sourceId);
@@ -115,7 +117,11 @@ export async function searchOpenLibrary(query, limit = 12, options = {}) {
 
 export async function fetchWorkDescription(sourceId) {
   try {
-    const work = await fetchJson(`${OPEN_LIBRARY_BOOK}/works/${encodeURIComponent(sourceId)}.json`);
+    const work = await cached(
+      `openlibrary:work:${sourceId}`,
+      24 * 60 * 60_000,
+      () => fetchJson(`${OPEN_LIBRARY_BOOK}/works/${encodeURIComponent(sourceId)}.json`)
+    );
     if (typeof work.description === "string") return cleanDescription(work.description);
     return cleanDescription(work.description?.value);
   } catch {
@@ -185,29 +191,46 @@ export async function getOpenLibraryBook(sourceId) {
 }
 
 export async function translateBook(book, language, config) {
-  if (!language || language === "es" || !config?.translationApiUrl) return book;
+  if (!language || !config?.translationApiUrl) return book;
+  const languageAliases = {
+    es: ["es", "spa"],
+    en: ["en", "eng"],
+    fr: ["fr", "fre", "fra"],
+    de: ["de", "ger", "deu"],
+    it: ["it", "ita"],
+    pt: ["pt", "por"]
+  };
+  if (languageAliases[language]?.includes(String(book.language || "").toLowerCase())) {
+    return book;
+  }
   const values = [book.title, book.synopsis].filter(Boolean);
   if (!values.length) return book;
   try {
-    const response = await fetch(config.translationApiUrl, {
-      method: "POST",
-      signal: AbortSignal.timeout(15_000),
-      headers: {
-        "Content-Type": "application/json",
-        ...(config.translationApiKey
-          ? { Authorization: `Bearer ${config.translationApiKey}` }
-          : {})
-      },
-      body: JSON.stringify({
-        q: values,
-        source: "auto",
-        target: language,
-        format: "text",
-        api_key: config.translationApiKey || undefined
-      })
-    });
-    if (!response.ok) return book;
-    const payload = await response.json();
+    const payload = await cached(
+      `translation:${language}:${book.source}:${book.sourceId}`,
+      7 * 24 * 60 * 60_000,
+      async () => {
+        const response = await fetch(config.translationApiUrl, {
+          method: "POST",
+          signal: AbortSignal.timeout(15_000),
+          headers: {
+            "Content-Type": "application/json",
+            ...(config.translationApiKey
+              ? { Authorization: `Bearer ${config.translationApiKey}` }
+              : {})
+          },
+          body: JSON.stringify({
+            q: values,
+            source: "auto",
+            target: language,
+            format: "text",
+            api_key: config.translationApiKey || undefined
+          })
+        });
+        if (!response.ok) throw new Error("Translation unavailable");
+        return response.json();
+      }
+    );
     const translated = Array.isArray(payload.translatedText)
       ? payload.translatedText
       : [payload.translatedText];

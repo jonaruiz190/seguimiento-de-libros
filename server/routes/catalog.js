@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { asyncHandler, requireAuth } from "../middleware.js";
 import { BOOK_CATEGORIES, categorySubject } from "../catalog-categories.js";
+import { getAniListBook, searchAniList } from "../services/anilist.js";
 import {
   getOpenLibraryBook,
   searchOpenLibrary,
@@ -15,8 +16,11 @@ import {
   validate
 } from "../validation.js";
 
+const ASIAN_CATEGORIES = new Set(["Manga", "Manhwa", "Manhua", "Webtoon", "Novela ligera"]);
+
 function bookId(book) {
-  return `ol-${book.sourceId.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${randomUUID().slice(0, 8)}`;
+  return `${book.source === "anilist" ? "al" : "ol"}-${book.sourceId
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${randomUUID().slice(0, 8)}`;
 }
 
 export function createCatalogRouter({ pool, config }) {
@@ -24,7 +28,15 @@ export function createCatalogRouter({ pool, config }) {
   router.use(requireAuth(pool));
 
   router.get("/categories", (request, response) => {
-    response.json({ categories: BOOK_CATEGORIES.map((category) => category.name) });
+    response.set("Cache-Control", "private, max-age=3600");
+    response.json({
+      categories: BOOK_CATEGORIES.map((category) => category.name),
+      capabilities: {
+        nytBestsellers: Boolean(config.nytBooksApiKey),
+        translation: Boolean(config.translationApiUrl),
+        anilist: true
+      }
+    });
   });
 
   router.get("/recommendations", asyncHandler(async (request, response) => {
@@ -39,10 +51,12 @@ export function createCatalogRouter({ pool, config }) {
         ? preferenceRows.rows.map((row) => row.category)
         : ["Fantasía", "Clásicos", "Aventura"];
     const searches = await Promise.allSettled(categories.map((category) =>
-      searchOpenLibrary(`subject:${categorySubject(category)}`, 25, {
-        language: input.language,
-        sort: "rating"
-      })
+      ASIAN_CATEGORIES.has(category)
+        ? searchAniList({ category, language: input.language, limit: 30 })
+        : searchOpenLibrary(`subject:${categorySubject(category)}`, 35, {
+          language: input.language,
+          sort: "rating"
+        })
     ));
     const recommendations = [];
     const seen = new Set();
@@ -51,55 +65,67 @@ export function createCatalogRouter({ pool, config }) {
       if (search.status !== "fulfilled") return;
       let categoryCount = 0;
       for (const book of search.value) {
-        const categoryBookKey = `${categories[index]}:${book.sourceId}`;
-        if (seen.has(categoryBookKey) || book.pages <= 1 || categoryCount >= 20) continue;
-        seen.add(categoryBookKey);
+        const key = duplicateKey(book);
+        if (seen.has(key) || book.pages <= 0 || categoryCount >= 20) continue;
+        seen.add(key);
         categoryCount += 1;
         recommendations.push({ ...book, recommendedCategory: categories[index] });
       }
     });
-
     if (!recommendations.length) {
       const error = new Error("No se pudieron cargar recomendaciones del catálogo real.");
       error.status = 502;
       throw error;
     }
-    const existing = await pool.query(
-      `SELECT source_id FROM books
-       WHERE catalog_source = 'openlibrary' AND source_id = ANY($1::text[])`,
-      [recommendations.map((book) => book.sourceId)]
+    const localized = await localizeBooks(
+      recommendations,
+      input.language || request.user.language || "es",
+      config
     );
-    const imported = new Set(existing.rows.map((row) => row.source_id));
+    const imported = await importedSourceKeys(pool, localized);
+    response.set("Cache-Control", "private, max-age=300");
     response.json({
       categories,
-      books: recommendations.map((book) => ({
+      books: localized.map((book) => ({
         ...book,
-        imported: imported.has(book.sourceId)
+        imported: imported.has(`${book.source}:${book.sourceId}`)
       }))
     });
   }));
 
   router.get("/search", asyncHandler(async (request, response) => {
     const input = validate(catalogSearchSchema, request.query);
-    const books = await searchOpenLibrary(input.q, 24, { language: input.language });
-    response.json({ books });
+    const tasks = [];
+    if (input.source !== "anilist") {
+      tasks.push(searchOpenLibrary(input.q, 24, { language: input.language }));
+    }
+    if (input.source !== "books") {
+      tasks.push(searchAniList({ query: input.q, language: input.language, limit: 24 }));
+    }
+    const settled = await Promise.allSettled(tasks);
+    const books = dedupeBooks(settled.flatMap((result) =>
+      result.status === "fulfilled" ? result.value : []
+    ));
+    const localized = await localizeBooks(books, input.language || "es", config);
+    response.set("Cache-Control", "private, max-age=300");
+    response.json({ books: localized });
   }));
 
   router.get("/books/:sourceId", asyncHandler(async (request, response) => {
-    const sourceId = validate(catalogImportSchema, {
-      sourceId: request.params.sourceId
-    }).sourceId;
+    const input = validate(catalogImportSchema, {
+      sourceId: request.params.sourceId,
+      source: request.query.source || "openlibrary"
+    });
     const language = String(request.query.language || "es");
-    const book = await translateBook(
-      await getOpenLibraryBook(sourceId),
-      language,
-      config
-    );
+    const rawBook = input.source === "anilist"
+      ? await getAniListBook(input.sourceId, language)
+      : await getOpenLibraryBook(input.sourceId);
+    const book = await translateBook(rawBook, language, config);
     const existing = await pool.query(
-      `SELECT id FROM books
-       WHERE catalog_source = 'openlibrary' AND source_id = $1`,
-      [sourceId]
+      "SELECT id FROM books WHERE catalog_source = $1 AND source_id = $2",
+      [input.source, input.sourceId]
     );
+    response.set("Cache-Control", "private, max-age=600");
     response.json({
       book: {
         ...book,
@@ -111,28 +137,24 @@ export function createCatalogRouter({ pool, config }) {
 
   router.get("/ranking", asyncHandler(async (request, response) => {
     const input = validate(rankingSchema, request.query);
-    if (request.query.source === "nyt") {
+    if (input.source === "nyt") {
       if (!config.nytBooksApiKey) {
         return response.status(503).json({
-          error: "Configura NYT_BOOKS_API_KEY para consultar best sellers oficiales."
+          error: "Los best sellers oficiales requieren configurar una API key de NYT Books."
         });
       }
       if (input.year === undefined) {
-        return response.status(400).json({
-          error: "Selecciona un año para consultar best sellers."
-        });
+        return response.status(400).json({ error: "Selecciona un año para consultar best sellers." });
       }
       const url = new URL("https://api.nytimes.com/svc/books/v3/lists/full-overview.json");
       url.searchParams.set("published_date", `${input.year}-01-01`);
       url.searchParams.set("api-key", config.nytBooksApiKey);
       const nytResponse = await fetch(url, { signal: AbortSignal.timeout(15_000) });
       if (!nytResponse.ok) {
-        return response.status(502).json({
-          error: "NYT Books no pudo devolver el ranking para ese año."
-        });
+        return response.status(502).json({ error: "NYT Books no pudo devolver el ranking." });
       }
       const payload = await nytResponse.json();
-      const books = (payload.results?.lists || []).flatMap((list) =>
+      const books = dedupeBooks((payload.results?.lists || []).flatMap((list) =>
         (list.books || []).map((book) => ({
           source: "nyt",
           sourceId: book.primary_isbn13 || `${list.list_id}-${book.rank}`,
@@ -150,7 +172,7 @@ export function createCatalogRouter({ pool, config }) {
           buyUrl: book.amazon_product_url || null,
           rank: book.rank
         }))
-      );
+      ));
       return response.json({
         source: "The New York Times Books API",
         rankingType: `best sellers publicados en ${input.year}`,
@@ -163,10 +185,11 @@ export function createCatalogRouter({ pool, config }) {
     if (input.category) query.push(`subject:${categorySubject(input.category)}`);
     if (input.year !== undefined) query.push(`first_publish_year:${input.year}`);
     if (!query.length) query.push("language:eng");
-    const books = await searchOpenLibrary(query.join(" "), 100, {
+    const books = dedupeBooks(await searchOpenLibrary(query.join(" "), 150, {
       language: input.language,
       sort: "rating"
-    });
+    }));
+    response.set("Cache-Control", "private, max-age=600");
     response.json({
       source: "Open Library",
       rankingType: "popularidad y valoraciones del catálogo",
@@ -185,13 +208,15 @@ export function createCatalogRouter({ pool, config }) {
 
   router.post("/import", asyncHandler(async (request, response) => {
     const input = validate(catalogImportSchema, request.body);
-    const book = await getOpenLibraryBook(input.sourceId);
+    const book = input.source === "anilist"
+      ? await getAniListBook(input.sourceId, request.user.language || "es")
+      : await getOpenLibraryBook(input.sourceId);
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
       const existing = await client.query(
-        "SELECT id FROM books WHERE catalog_source = 'openlibrary' AND source_id = $1",
-        [book.sourceId]
+        "SELECT id FROM books WHERE catalog_source = $1 AND source_id = $2",
+        [input.source, input.sourceId]
       );
       const id = existing.rows[0]?.id || bookId(book);
       const result = await client.query(
@@ -199,8 +224,8 @@ export function createCatalogRouter({ pool, config }) {
           (id, title, author, publication_year, pages, rating, cover_url, synopsis,
            isbn_13, publisher, language, catalog_source, source_id, preview_url,
            apple_books_url, kindle_url, metadata_synced_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'openlibrary',
-                 $12, $13, $14, $15, NOW())
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
+                 $13, $14, $15, $16, NOW())
          ON CONFLICT (id) DO UPDATE SET
            title = EXCLUDED.title, author = EXCLUDED.author,
            publication_year = EXCLUDED.publication_year, pages = EXCLUDED.pages,
@@ -213,9 +238,10 @@ export function createCatalogRouter({ pool, config }) {
            metadata_synced_at = NOW(), updated_at = NOW()
          RETURNING id`,
         [
-          id, book.title, book.author, book.year, book.pages, book.rating,
-          book.cover, book.synopsis, book.isbn13, book.publisher, book.language,
-          book.sourceId, book.previewUrl, book.appleBooksUrl, book.kindleUrl
+          id, book.title, book.author, book.year, Math.max(1, book.pages), book.rating,
+          book.cover, book.synopsis, book.isbn13 || null, book.publisher || null,
+          book.language, input.source, book.sourceId, book.previewUrl || book.externalUrl || null,
+          book.appleBooksUrl || null, book.kindleUrl || null
         ]
       );
       await client.query("DELETE FROM book_categories WHERE book_id = $1", [id]);
@@ -236,4 +262,46 @@ export function createCatalogRouter({ pool, config }) {
   }));
 
   return router;
+}
+
+function duplicateKey(book) {
+  const title = String(book.title || "").normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const author = String(book.author || "").normalize("NFKD")
+    .replace(/\p{Diacritic}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return `${title}:${author}`;
+}
+
+function dedupeBooks(books) {
+  const seen = new Set();
+  return books.filter((book) => {
+    const key = duplicateKey(book);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function importedSourceKeys(pool, books) {
+  const openLibraryIds = books.filter((book) => book.source === "openlibrary")
+    .map((book) => book.sourceId);
+  const aniListIds = books.filter((book) => book.source === "anilist")
+    .map((book) => book.sourceId);
+  const result = await pool.query(
+    `SELECT catalog_source, source_id FROM books
+     WHERE (catalog_source = 'openlibrary' AND source_id = ANY($1::text[]))
+        OR (catalog_source = 'anilist' AND source_id = ANY($2::text[]))`,
+    [openLibraryIds, aniListIds]
+  );
+  return new Set(result.rows.map((row) => `${row.catalog_source}:${row.source_id}`));
+}
+
+async function localizeBooks(books, language, config) {
+  if (!config.translationApiUrl) return books;
+  const localized = await Promise.allSettled(books.map((book) =>
+    translateBook(book, language, config)
+  ));
+  return localized.map((result, index) =>
+    result.status === "fulfilled" ? result.value : books[index]
+  );
 }

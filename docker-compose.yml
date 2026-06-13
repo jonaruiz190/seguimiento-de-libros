@@ -15,6 +15,25 @@ services:
       timeout: 5s
       retries: 10
 
+  translation:
+    image: libretranslate/libretranslate:latest
+    command: ["--load-only", "en,es,fr,de,it,pt,ja,ko,zh"]
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - libretranslate_models:/home/libretranslate/.local
+    healthcheck:
+      test:
+        - "CMD"
+        - "python"
+        - "-c"
+        - "import urllib.request; urllib.request.urlopen('http://localhost:5000/languages', timeout=4)"
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
   app:
     build: .
     environment:
@@ -28,15 +47,20 @@ services:
       SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
       SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-http://127.0.0.1:3000/api/integrations/spotify/callback}
       INTEGRATION_ENCRYPTION_KEY: ${INTEGRATION_ENCRYPTION_KEY:-}
-      TRANSLATION_API_URL: ${TRANSLATION_API_URL:-}
+      TRANSLATION_API_URL: ${TRANSLATION_API_URL:-http://translation:5000/translate}
       TRANSLATION_API_KEY: ${TRANSLATION_API_KEY:-}
       NYT_BOOKS_API_KEY: ${NYT_BOOKS_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
     ports:
       - "3000:3000"
     depends_on:
       database:
         condition: service_healthy
+      translation:
+        condition: service_healthy
     command: ["sh", "-c", "npm run db:migrate && npm run db:seed && npm start"]
 
 volumes:
   postgres_data:
+  libretranslate_models:

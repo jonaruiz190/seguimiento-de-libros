@@ -29,6 +29,9 @@
         <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
         <p id="login-error" class="form-error" role="alert"></p>
         <button class="button button--primary button--full" type="submit">Entrar a mi biblioteca</button>
+        <button id="forgot-password-button" class="text-button" type="button">
+          ¿Olvidaste tu contraseña?
+        </button>
         <button id="open-register-button" class="button button--secondary button--full" type="button">
           Crear una cuenta
         </button>
@@ -108,6 +111,16 @@
           Conectar mi Spotify
         </button>
       </div>
+      <form id="spotify-search-form" class="spotify-search">
+        <input id="spotify-search-query" type="search" minlength="2"
+          placeholder="Buscar música o playlists">
+        <select id="spotify-search-type">
+          <option value="playlist">Playlists</option>
+          <option value="track">Canciones</option>
+        </select>
+        <button class="button button--primary" type="submit">Buscar</button>
+      </form>
+      <div id="spotify-search-results" class="spotify-search-results"></div>
     </aside>
 
     <main>
@@ -136,7 +149,12 @@
               <p class="eyebrow">Elegidos para ti</p>
               <h2 id="recommendations-title">Recomendaciones del catálogo real</h2>
             </div>
-            <div id="category-filters" class="filters" aria-label="Filtros por categoría"></div>
+            <div class="category-filter">
+              <select id="category-select" aria-label="Filtrar por categoría"></select>
+              <button id="clear-category-filter" class="button button--secondary" type="button">
+                Limpiar
+              </button>
+            </div>
           </div>
           <div id="recommendations-grid" class="book-grid"></div>
           <p id="empty-search" class="empty-state is-hidden">No hay recomendaciones para esta categoría.</p>
@@ -212,6 +230,31 @@
             Actualizar datos
           </button>
         </div>
+        <form id="dashboard-filters" class="dashboard-filters">
+          <label>Desde<input id="dashboard-from" type="date"></label>
+          <label>Hasta<input id="dashboard-to" type="date"></label>
+          <label>Estado
+            <select id="dashboard-status">
+              <option value="">Todos</option><option>Leyendo</option>
+              <option>Próximo a leer</option><option>Leído</option>
+            </select>
+          </label>
+          <label>Formato
+            <select id="dashboard-format">
+              <option value="">Todos</option><option>Físico</option><option>Digital</option>
+            </select>
+          </label>
+          <label>Aplicación
+            <select id="dashboard-provider">
+              <option value="">Todas</option><option>Kindle</option>
+              <option>Apple Books</option><option>Google Books</option><option>Otro</option>
+            </select>
+          </label>
+          <button class="button button--primary" type="submit">Aplicar</button>
+          <button id="clear-dashboard-filters" class="button button--secondary" type="button">
+            Limpiar
+          </button>
+        </form>
 
         <div id="dashboard-loading" class="dashboard-loading">Calculando tus estadísticas...</div>
         <div id="dashboard-content" class="is-hidden">
@@ -286,7 +329,7 @@
                   <h2>Físico vs digital</h2>
                 </div>
               </div>
-              <div id="format-chart" class="ranking-chart"></div>
+              <div id="format-chart" class="format-heatmap"></div>
             </article>
 
             <article class="dashboard-panel">
@@ -335,6 +378,9 @@
           </select>
           <input id="ranking-year" type="number" min="0" max="3000" placeholder="Año">
           <button class="button button--primary" type="submit">Aplicar filtros</button>
+          <button id="clear-ranking-filters" class="button button--secondary" type="button">
+            Limpiar
+          </button>
         </form>
         <p id="ranking-note" class="field-hint">
           Este ranking no representa una lista oficial de best sellers.
@@ -486,6 +532,9 @@
       <label for="profile-name">Nombre</label>
       <input id="profile-name" type="text" maxlength="120" required>
       <label for="profile-avatar">Foto de perfil</label>
+      <div class="profile-avatar-preview">
+        <img id="profile-avatar-preview" src="/covers/fallback.svg" alt="Vista previa de perfil">
+      </div>
       <input id="profile-avatar" type="url" maxlength="2000"
         placeholder="https://ejemplo.com/mi-foto.jpg">
       <label for="profile-avatar-file">O cargar desde tu dispositivo</label>
@@ -510,6 +559,9 @@
       <label for="profile-playlist">Playlist personal de Spotify</label>
       <input id="profile-playlist" type="url" maxlength="2000"
         placeholder="https://open.spotify.com/playlist/...">
+      <button id="profile-spotify-connect" class="button button--secondary" type="button">
+        Conectar mi cuenta de Spotify
+      </button>
       <label for="profile-current-password">Contraseña actual</label>
       <input id="profile-current-password" type="password" autocomplete="current-password" maxlength="128">
       <label for="profile-new-password">Nueva contraseña</label>
@@ -524,6 +576,38 @@
       <button id="delete-profile-button" class="button button--danger button--full" type="button">
         Eliminar mi cuenta
       </button>
+    </form>
+  </div>
+
+  <div id="forgot-password-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="forgot-password-title">
+    <div class="modal__backdrop" data-close-forgot></div>
+    <form id="forgot-password-form" class="modal__content modal__content--form">
+      <button class="modal__close" type="button" data-close-forgot aria-label="Cerrar">×</button>
+      <p class="eyebrow">Recuperación segura</p>
+      <h2 id="forgot-password-title">Restablecer contraseña</h2>
+      <label for="forgot-email">Correo electrónico</label>
+      <input id="forgot-email" type="email" autocomplete="email" required>
+      <p class="field-hint">
+        Si existe una cuenta, enviaremos un enlace de un solo uso que caduca en 30 minutos.
+      </p>
+      <p id="forgot-password-message" class="form-error" role="status"></p>
+      <button class="button button--primary button--full" type="submit">Enviar enlace</button>
+    </form>
+  </div>
+
+  <div id="reset-password-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="reset-password-title">
+    <div class="modal__backdrop"></div>
+    <form id="reset-password-form" class="modal__content modal__content--form">
+      <p class="eyebrow">Nueva contraseña</p>
+      <h2 id="reset-password-title">Protege tu cuenta</h2>
+      <label for="reset-password">Nueva contraseña</label>
+      <input id="reset-password" type="password" autocomplete="new-password"
+        minlength="12" maxlength="128" required>
+      <p class="field-hint">Incluye mayúscula, minúscula y número.</p>
+      <p id="reset-password-message" class="form-error" role="status"></p>
+      <button class="button button--primary button--full" type="submit">Cambiar contraseña</button>
     </form>
   </div>
 

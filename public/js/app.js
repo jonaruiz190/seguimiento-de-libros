@@ -6,6 +6,7 @@ const state = {
   dashboard: null,
   integrations: null,
   categories: [],
+  capabilities: {},
   ranking: [],
   avatarDataUrl: null,
   category: "Todos",
@@ -33,6 +34,7 @@ document.addEventListener("DOMContentLoaded", init);
 async function init() {
   bindEvents();
   renderRandomQuote();
+  showResetPasswordIfNeeded();
 
   try {
     const session = await api("/api/auth/me", { allowUnauthorized: true });
@@ -40,6 +42,74 @@ async function init() {
   } catch (error) {
     $("#login-error").textContent = "No se pudo conectar con el servidor.";
     console.error(error);
+  }
+}
+
+function openForgotPasswordModal() {
+  $("#forgot-password-form").reset();
+  $("#forgot-password-message").textContent = "";
+  $("#forgot-password-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  $("#forgot-email").focus();
+}
+
+function closeForgotPasswordModal() {
+  $("#forgot-password-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+async function requestPasswordReset(event) {
+  event.preventDefault();
+  const message = $("#forgot-password-message");
+  const button = $("#forgot-password-form button[type='submit']");
+  button.disabled = true;
+  try {
+    const result = await api("/api/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email: $("#forgot-email").value.trim() })
+    });
+    message.textContent = result.message;
+    if (result.developmentResetUrl) {
+      const url = new URL(result.developmentResetUrl);
+      message.innerHTML = `${escapeHtml(result.message)}
+        <br><a href="${escapeHtml(url.href)}">Abrir enlace de desarrollo</a>`;
+    }
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function showResetPasswordIfNeeded() {
+  const token = new URL(window.location.href).searchParams.get("reset");
+  if (!token) return;
+  $("#reset-password-form").dataset.token = token;
+  $("#reset-password-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+}
+
+async function resetPassword(event) {
+  event.preventDefault();
+  const message = $("#reset-password-message");
+  try {
+    await api("/api/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({
+        token: event.currentTarget.dataset.token,
+        password: $("#reset-password").value
+      })
+    });
+    message.textContent = "Contraseña actualizada. Ya puedes iniciar sesión.";
+    const url = new URL(window.location.href);
+    url.searchParams.delete("reset");
+    window.history.replaceState({}, "", url);
+    setTimeout(() => {
+      $("#reset-password-modal").classList.add("is-hidden");
+      document.body.style.overflow = "";
+    }, 1200);
+  } catch (error) {
+    message.textContent = error.message;
   }
 }
 
@@ -72,12 +142,32 @@ function bindEvents() {
   $("#spotify-connect").addEventListener("click", connectSpotify);
   $("#load-spotify-playlists").addEventListener("click", loadSpotifyPlaylists);
   $("#spotify-playlist-select").addEventListener("change", selectSpotifyPlaylist);
+  $("#spotify-search-form").addEventListener("submit", searchSpotify);
   $("#tracking-form").addEventListener("submit", saveTracking);
   $("#tracking-status").addEventListener("change", applyDateDefaults);
   $("#refresh-dashboard").addEventListener("click", () => loadDashboard(true));
+  $("#dashboard-filters").addEventListener("submit", (event) => {
+    event.preventDefault();
+    loadDashboard(true);
+  });
+  $("#clear-dashboard-filters").addEventListener("click", clearDashboardFilters);
   $("#ranking-filters").addEventListener("submit", loadRanking);
+  $("#clear-ranking-filters").addEventListener("click", clearRankingFilters);
   $("#profile-avatar-file").addEventListener("change", loadLocalAvatar);
+  $("#profile-avatar").addEventListener("input", updateAvatarPreview);
   $("#delete-profile-button").addEventListener("click", deleteProfile);
+  $("#profile-spotify-connect").addEventListener("click", connectSpotify);
+  $("#category-select").addEventListener("change", async (event) => {
+    state.category = event.target.value;
+    await loadRecommendations(state.category === "Todos" ? "" : state.category);
+  });
+  $("#clear-category-filter").addEventListener("click", async () => {
+    state.category = "Todos";
+    await loadRecommendations();
+  });
+  $("#forgot-password-button").addEventListener("click", openForgotPasswordModal);
+  $("#forgot-password-form").addEventListener("submit", requestPasswordReset);
+  $("#reset-password-form").addEventListener("submit", resetPassword);
 
   $$("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
@@ -103,6 +193,9 @@ function bindEvents() {
   $$("[data-close-catalog]").forEach((element) => {
     element.addEventListener("click", closeCatalogModal);
   });
+  $$("[data-close-forgot]").forEach((element) => {
+    element.addEventListener("click", closeForgotPasswordModal);
+  });
   $$("input[name='preference']").forEach((checkbox) => {
     checkbox.addEventListener("change", enforcePreferenceLimit);
   });
@@ -114,6 +207,7 @@ function bindEvents() {
       closeRegisterModal();
       closeProfileModal();
       closeCatalogModal();
+      closeForgotPasswordModal();
       closeSpotifyPanel();
     }
   });
@@ -236,6 +330,7 @@ async function enterApp(user) {
   state.tracking = trackingResult.tracking;
   state.integrations = integrationsResult;
   state.categories = categoriesResult.categories;
+  state.capabilities = categoriesResult.capabilities || {};
 
   $("#login-screen").classList.add("is-hidden");
   $("#app").classList.remove("is-hidden");
@@ -248,6 +343,7 @@ async function enterApp(user) {
   updateStats();
   renderIntegrationStatus();
   populateCategoryControls();
+  renderRankingCapabilities();
   applyLanguage();
   showSpotifyCallbackMessage();
   loadRecommendations();
@@ -345,6 +441,12 @@ function renderIntegrationStatus() {
     button.textContent = "Configurar Spotify";
     button.disabled = false;
   }
+  $("#profile-spotify-connect").textContent = spotify?.connected
+    ? "Reconectar Spotify"
+    : "Conectar mi cuenta de Spotify";
+  $("#profile-spotify-connect").disabled = false;
+  $("#spotify-connect").classList.toggle("is-hidden", true);
+  $("#spotify-search-form").classList.toggle("is-hidden", !spotify?.connected);
   const playlist = state.user?.spotifyPlaylistUrl || spotify?.playlistUrl || "";
   $("#spotify-playlist-select").innerHTML = `
     <option value="">Playlist predeterminada</option>
@@ -401,11 +503,41 @@ async function selectSpotifyPlaylist(event) {
   }
 }
 
+async function searchSpotify(event) {
+  event.preventDefault();
+  const query = $("#spotify-search-query").value.trim();
+  if (!query) return;
+  const container = $("#spotify-search-results");
+  container.innerHTML = '<p class="field-hint">Buscando en Spotify...</p>';
+  try {
+    const params = new URLSearchParams({
+      q: query,
+      type: $("#spotify-search-type").value
+    });
+    const result = await api(`/api/integrations/spotify/search?${params}`);
+    container.innerHTML = result.items.length ? result.items.map((item) => `
+      <button class="spotify-result" type="button"
+        data-spotify-url="${escapeHtml(item.url)}">
+        <img src="${safeImageUrl(item.image)}" alt="">
+        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></span>
+      </button>
+    `).join("") : '<p class="field-hint">No se encontraron resultados.</p>';
+    $$("[data-spotify-url]", container).forEach((button) => {
+      button.addEventListener("click", () => {
+        $("#spotify-frame").src = spotifyEmbedFromUrl(button.dataset.spotifyUrl);
+      });
+    });
+    attachImageFallbacks(container);
+  } catch (error) {
+    container.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 function spotifyEmbedFromUrl(url) {
   if (!url) return spotifyEmbedUrl;
-  const match = String(url).match(/open\.spotify\.com\/playlist\/([A-Za-z0-9]+)/);
+  const match = String(url).match(/open\.spotify\.com\/(playlist|track)\/([A-Za-z0-9]+)/);
   return match
-    ? `https://open.spotify.com/embed/playlist/${match[1]}?utm_source=generator`
+    ? `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator`
     : spotifyEmbedUrl;
 }
 
@@ -445,26 +577,15 @@ function renderCategoryFilters() {
     ...preferences,
     ...state.categories.filter((category) => !preferences.includes(category))
   ];
-
-  $("#category-filters").innerHTML = categories.map((category) => `
-    <button class="filter-button ${category === state.category ? "is-active" : ""}"
-      type="button" data-category="${escapeHtml(category)}">
-      ${escapeHtml(category)}
-    </button>
+  $("#category-select").innerHTML = categories.map((category) => `
+    <option value="${escapeHtml(category)}"
+      ${category === state.category ? "selected" : ""}>${escapeHtml(category)}</option>
   `).join("");
-
-  $$("[data-category]").forEach((button) => {
-    button.addEventListener("click", async () => {
-      state.category = button.dataset.category;
-      renderCategoryFilters();
-      await loadRecommendations(state.category === "Todos" ? "" : state.category);
-    });
-  });
 }
 
 function renderBooks() {
   const preferences = state.user?.preferences || [];
-  const filtered = state.recommendations
+  const filtered = dedupeClientBooks(state.recommendations)
     .filter((book) =>
       state.category === "Todos" ||
       book.recommendedCategory === state.category ||
@@ -480,7 +601,8 @@ function renderBooks() {
     <article class="book-card">
       <button class="book-card__cover-wrap book-card__preview" type="button"
         ${book.sourceId
-          ? `data-preview-source="${escapeHtml(book.sourceId)}"`
+          ? `data-preview-source="${escapeHtml(book.sourceId)}"
+             data-preview-provider="${escapeHtml(book.source || "openlibrary")}"`
           : `data-book-id="${escapeHtml(book.id)}"`}>
         <img class="book-card__cover" src="${safeImageUrl(book.cover)}"
           alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
@@ -504,7 +626,10 @@ function renderBooks() {
     button.addEventListener("click", () => openBookModal(button.dataset.bookId));
   });
   $$("[data-preview-source]").forEach((button) => {
-    button.addEventListener("click", () => openCatalogBookPreview(button.dataset.previewSource));
+    button.addEventListener("click", () => openCatalogBookPreview(
+      button.dataset.previewSource,
+      button.dataset.previewProvider
+    ));
   });
 }
 
@@ -580,13 +705,13 @@ function openBookModal(bookId) {
   document.body.style.overflow = "hidden";
 }
 
-async function openCatalogBookPreview(sourceId) {
+async function openCatalogBookPreview(sourceId, source = "openlibrary") {
   $("#book-detail").innerHTML = '<p class="empty-state">Cargando información y sinopsis...</p>';
   $("#book-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
   try {
     const result = await api(
-      `/api/catalog/books/${encodeURIComponent(sourceId)}?language=${encodeURIComponent(state.user?.language || "es")}`
+      `/api/catalog/books/${encodeURIComponent(sourceId)}?language=${encodeURIComponent(state.user?.language || "es")}&source=${encodeURIComponent(source)}`
     );
     renderExternalBookDetail(result.book);
   } catch (error) {
@@ -628,6 +753,7 @@ function renderExternalBookDetail(book) {
   attachImageFallbacks($("#book-detail"));
   $("#preview-import-button").addEventListener("click", async (event) => {
     event.currentTarget.dataset.importBook = book.sourceId;
+    event.currentTarget.dataset.importSource = book.source;
     await importCatalogBook(event.currentTarget);
   });
 }
@@ -694,7 +820,9 @@ function restoreBodyScroll() {
       && $("#tracking-modal").classList.contains("is-hidden")
       && $("#register-modal").classList.contains("is-hidden")
       && $("#profile-modal").classList.contains("is-hidden")
-      && $("#catalog-modal").classList.contains("is-hidden")) {
+      && $("#catalog-modal").classList.contains("is-hidden")
+      && $("#forgot-password-modal").classList.contains("is-hidden")
+      && $("#reset-password-modal").classList.contains("is-hidden")) {
     document.body.style.overflow = "";
   }
 }
@@ -752,6 +880,7 @@ function openProfileModal() {
   $("#profile-name").value = state.user.name;
   $("#profile-avatar").value = state.user.avatarUrl?.startsWith("http") ? state.user.avatarUrl : "";
   state.avatarDataUrl = state.user.avatarUrl?.startsWith("data:") ? state.user.avatarUrl : null;
+  updateAvatarPreview();
   $("#profile-language").value = state.user.language || "es";
   $("#profile-authors").value = (state.user.favoriteAuthors || []).join("\n");
   $("#profile-playlist").value = state.user.spotifyPlaylistUrl || "";
@@ -783,6 +912,7 @@ async function saveProfile(event) {
     });
     state.user = result.user;
     renderUserIdentity();
+    renderIntegrationStatus();
     applyLanguage();
     $("#welcome-message").textContent = `${greeting()}, ${state.user.name.split(" ")[0]}`;
     await loadRecommendations();
@@ -830,9 +960,16 @@ function loadLocalAvatar(event) {
   reader.addEventListener("load", () => {
     state.avatarDataUrl = String(reader.result);
     $("#profile-avatar").value = "";
+    updateAvatarPreview();
     $("#profile-error").textContent = "Imagen local lista para guardar.";
   });
   reader.readAsDataURL(file);
+}
+
+function updateAvatarPreview() {
+  const value = state.avatarDataUrl || $("#profile-avatar")?.value.trim()
+    || state.user?.avatarUrl || "/covers/fallback.svg";
+  $("#profile-avatar-preview").src = safeImageUrl(value) || "/covers/fallback.svg";
 }
 
 async function deleteProfile() {
@@ -878,6 +1015,15 @@ function populateCategoryControls() {
   }
 }
 
+function renderRankingCapabilities() {
+  const nytOption = $("#ranking-source option[value='nyt']");
+  if (!nytOption) return;
+  nytOption.disabled = !state.capabilities.nytBestsellers;
+  nytOption.textContent = state.capabilities.nytBestsellers
+    ? "Best sellers oficiales por año"
+    : "Best sellers oficiales (requiere API key)";
+}
+
 async function searchCatalog(event) {
   event.preventDefault();
   const query = $("#catalog-search").value.trim();
@@ -912,7 +1058,8 @@ function renderCatalogResults(books) {
   $("#catalog-results").innerHTML = books.map((book) => `
     <article class="catalog-book">
       <button class="catalog-book__preview" type="button"
-        data-preview-source="${escapeHtml(book.sourceId)}">
+        data-preview-source="${escapeHtml(book.sourceId)}"
+        data-preview-provider="${escapeHtml(book.source || "openlibrary")}">
         <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}" loading="lazy">
       </button>
       <div>
@@ -922,7 +1069,8 @@ function renderCatalogResults(books) {
           ${book.isbn13 ? ` · ISBN ${escapeHtml(book.isbn13)}` : ""}</small>
       </div>
       <button class="button button--secondary" type="button"
-        data-import-book="${escapeHtml(book.sourceId)}">Agregar</button>
+        data-import-book="${escapeHtml(book.sourceId)}"
+        data-import-source="${escapeHtml(book.source || "openlibrary")}">Agregar</button>
     </article>
   `).join("");
   attachImageFallbacks($("#catalog-results"));
@@ -930,18 +1078,22 @@ function renderCatalogResults(books) {
     button.addEventListener("click", () => importCatalogBook(button));
   });
   $$("[data-preview-source]", $("#catalog-results")).forEach((button) => {
-    button.addEventListener("click", () => openCatalogBookPreview(button.dataset.previewSource));
+    button.addEventListener("click", () => openCatalogBookPreview(
+      button.dataset.previewSource,
+      button.dataset.previewProvider
+    ));
   });
 }
 
 async function importCatalogBook(button) {
   const sourceId = button.dataset.importBook || button.dataset.importRecommendation;
+  const source = button.dataset.importSource || "openlibrary";
   button.disabled = true;
   button.textContent = "Agregando...";
   try {
     const result = await api("/api/catalog/import", {
       method: "POST",
-      body: JSON.stringify({ sourceId })
+      body: JSON.stringify({ sourceId, source })
     });
     const booksResult = await api("/api/books");
     state.books = booksResult.books;
@@ -1069,7 +1221,18 @@ async function loadDashboard(force = false) {
   content.classList.add("is-hidden");
 
   try {
-    state.dashboard = await api("/api/dashboard");
+    const params = new URLSearchParams();
+    const filters = {
+      from: $("#dashboard-from").value,
+      to: $("#dashboard-to").value,
+      status: $("#dashboard-status").value,
+      format: $("#dashboard-format").value,
+      provider: $("#dashboard-provider").value
+    };
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    state.dashboard = await api(`/api/dashboard?${params}`);
     renderDashboard();
   } catch (error) {
     loading.textContent = error.message;
@@ -1097,12 +1260,44 @@ function renderDashboard() {
   renderMonthlyChart(dashboard.monthly);
   renderRankingChart("#genre-chart", dashboard.genres);
   renderRankingChart("#author-chart", dashboard.authors);
-  renderRankingChart("#format-chart", dashboard.formats);
+  renderFormatHeatmap(dashboard.formatHeatmap);
   renderRankingChart("#provider-chart", dashboard.providers);
   renderDashboardBooks(dashboard.books);
 
   $("#dashboard-loading").classList.add("is-hidden");
   $("#dashboard-content").classList.remove("is-hidden");
+}
+
+function clearDashboardFilters() {
+  $("#dashboard-filters").reset();
+  state.dashboard = null;
+  loadDashboard(true);
+}
+
+function renderFormatHeatmap(rows) {
+  const container = $("#format-chart");
+  if (!rows?.length) {
+    container.innerHTML = '<p class="dashboard-empty">No hay datos para estos filtros.</p>';
+    return;
+  }
+  const months = [...new Set(rows.map((row) => row.month))].sort();
+  const formats = ["Físico", "Digital"];
+  const values = new Map(rows.map((row) => [`${row.month}:${row.label}`, Number(row.value)]));
+  const max = Math.max(1, ...values.values());
+  container.innerHTML = `
+    <div class="heatmap-corner"></div>
+    ${months.map((month) => `<span class="heatmap-month">${escapeHtml(month.slice(5))}</span>`).join("")}
+    ${formats.map((format) => `
+      <strong class="heatmap-label">${escapeHtml(format)}</strong>
+      ${months.map((month) => {
+        const value = values.get(`${month}:${format}`) || 0;
+        const intensity = value / max;
+        return `<span class="heatmap-cell" title="${escapeHtml(`${month}: ${value} ${format}`)}"
+          style="--heat: ${intensity}">${value || ""}</span>`;
+      }).join("")}
+    `).join("")}
+  `;
+  container.style.setProperty("--heatmap-columns", String(months.length));
 }
 
 function renderMonthlyChart(monthly) {
@@ -1202,6 +1397,12 @@ async function loadRanking(event) {
   } catch (error) {
     loading.textContent = error.message;
   }
+}
+
+function clearRankingFilters() {
+  $("#ranking-filters").reset();
+  state.ranking = [];
+  loadRanking();
 }
 
 function renderRanking() {
@@ -1307,6 +1508,9 @@ function escapeHtml(value) {
 }
 
 function safeImageUrl(value) {
+  if (/^data:image\/(png|jpeg|webp);base64,/i.test(String(value || ""))) {
+    return escapeHtml(value);
+  }
   try {
     const url = new URL(value, window.location.origin);
     const allowed = url.origin === window.location.origin || url.protocol === "https:";
@@ -1314,6 +1518,22 @@ function safeImageUrl(value) {
   } catch {
     return "";
   }
+}
+
+function dedupeClientBooks(books) {
+  const seen = new Set();
+  return books.filter((book) => {
+    const key = `${normalizeBookText(book.title)}:${normalizeBookText(book.author)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function normalizeBookText(value) {
+  return String(value || "").normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 function safeExternalUrl(value) {

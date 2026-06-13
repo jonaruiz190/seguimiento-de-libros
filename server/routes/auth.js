@@ -10,9 +10,11 @@ import {
 } from "../security.js";
 import {
   deleteProfileSchema,
+  forgotPasswordSchema,
   loginSchema,
   profileSchema,
   registerSchema,
+  resetPasswordSchema,
   validate
 } from "../validation.js";
 
@@ -31,6 +33,13 @@ export function createAuthRouter({ pool, config }) {
     standardHeaders: "draft-8",
     legacyHeaders: false,
     message: { error: "Demasiados registros desde esta conexión. Intenta más tarde." }
+  });
+  const recoveryLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,
+    limit: 5,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    message: { error: "Demasiadas solicitudes. Intenta nuevamente más tarde." }
   });
 
   router.post("/login", loginLimiter, asyncHandler(async (request, response) => {
@@ -87,6 +96,69 @@ export function createAuthRouter({ pool, config }) {
 
     await startSession(pool, config, response, user.id);
     response.status(201).json({ user: await getPublicUser(pool, user) });
+  }));
+
+  router.post("/forgot-password", recoveryLimiter, asyncHandler(async (request, response) => {
+    const input = validate(forgotPasswordSchema, request.body);
+    const user = await pool.query("SELECT id, email FROM users WHERE email = $1", [input.email]);
+    let developmentResetUrl = null;
+    if (user.rowCount) {
+      const token = createSessionToken();
+      const tokenHash = hashSessionToken(token);
+      await pool.query(
+        `UPDATE password_reset_tokens SET used_at = NOW()
+         WHERE user_id = $1 AND used_at IS NULL`,
+        [user.rows[0].id]
+      );
+      await pool.query(
+        `INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+         VALUES ($1, $2, NOW() + INTERVAL '30 minutes')`,
+        [user.rows[0].id, tokenHash]
+      );
+      const resetUrl = `${config.appOrigin}/?reset=${encodeURIComponent(token)}`;
+      await sendPasswordResetEmail(config, user.rows[0].email, resetUrl);
+      if (!config.isProduction && !config.resendApiKey) developmentResetUrl = resetUrl;
+    }
+    response.json({
+      message: "Si la cuenta existe, recibirás instrucciones para restablecer la contraseña.",
+      ...(developmentResetUrl ? { developmentResetUrl } : {})
+    });
+  }));
+
+  router.post("/reset-password", recoveryLimiter, asyncHandler(async (request, response) => {
+    const input = validate(resetPasswordSchema, request.body);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const reset = await client.query(
+        `SELECT id, user_id FROM password_reset_tokens
+         WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW()
+         FOR UPDATE`,
+        [hashSessionToken(input.token)]
+      );
+      if (reset.rowCount !== 1) {
+        const error = new Error("El enlace es inválido o ha expirado.");
+        error.status = 400;
+        throw error;
+      }
+      const passwordHash = await hashPassword(input.password);
+      await client.query(
+        "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+        [passwordHash, reset.rows[0].user_id]
+      );
+      await client.query(
+        "UPDATE password_reset_tokens SET used_at = NOW() WHERE id = $1",
+        [reset.rows[0].id]
+      );
+      await client.query("DELETE FROM sessions WHERE user_id = $1", [reset.rows[0].user_id]);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+    response.status(204).end();
   }));
 
   router.get("/me", requireAuth(pool), asyncHandler(async (request, response) => {
@@ -192,6 +264,30 @@ export function createAuthRouter({ pool, config }) {
   }));
 
   return router;
+}
+
+async function sendPasswordResetEmail(config, email, resetUrl) {
+  if (!config.resendApiKey || !config.emailFrom) {
+    if (!config.isProduction) console.info(`Enlace de recuperación para ${email}: ${resetUrl}`);
+    return;
+  }
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    signal: AbortSignal.timeout(15_000),
+    headers: {
+      Authorization: `Bearer ${config.resendApiKey}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: config.emailFrom,
+      to: [email],
+      subject: "Restablece tu contraseña",
+      html: `<p>Solicitaste restablecer tu contraseña.</p>
+        <p><a href="${resetUrl}">Crear una contraseña nueva</a></p>
+        <p>El enlace caduca en 30 minutos y solo puede usarse una vez.</p>`
+    })
+  });
+  if (!response.ok) throw new Error("No se pudo enviar el correo de recuperación.");
 }
 
 async function startSession(pool, config, response, userId) {

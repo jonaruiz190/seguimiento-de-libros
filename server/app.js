@@ -64,7 +64,13 @@ export function createApp({ pool, config }) {
 
   app.use(express.static(publicDirectory, {
     extensions: ["html"],
-    maxAge: config.isProduction ? "1h" : 0
+    etag: true,
+    maxAge: config.isProduction ? "1d" : 0,
+    setHeaders(response, filePath) {
+      if (config.isProduction && /\.(?:jpg|jpeg|png|webp|svg|woff2?)$/i.test(filePath)) {
+        response.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      }
+    }
   }));
   app.get("/{*path}", (request, response, next) => {
     if (request.path.startsWith("/api/")) return next();

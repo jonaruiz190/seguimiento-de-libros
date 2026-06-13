@@ -15,17 +15,21 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 
 - Login contra usuarios almacenados en PostgreSQL.
 - Registro de cuentas con validación de contraseñas robustas.
-- Recomendaciones basadas en categorías preferidas.
-- Buscador principal conectado al catálogo real de Open Library.
+- Recomendaciones de al menos 20 resultados por categoría, sin duplicados.
+- Buscador conectado a Open Library y AniList para libros, manga, manhwa,
+  manhua, webtoons y novelas ligeras.
 - Seguimiento con estado, puntuación, comentarios y formato.
-- Dashboard con días de lectura, actividad mensual, géneros, autores, formatos y apps.
+- Dashboard filtrable con días de lectura, actividad mensual, géneros, autores,
+  aplicaciones y mapa de calor por formato.
 - Registro de fechas de inicio/finalización y cálculo automático de duración.
 - Creación, edición y eliminación de registros.
 - Vista detallada de cada libro.
 - Reproductor de Spotify en la barra superior y OAuth opcional.
 - Enlaces públicos de libro para Kindle, Apple Books y Google Books cuando existen.
 - Página actual y proveedor de lectura digital por cada seguimiento.
-- Edición de perfil: nombre, foto mediante URL y contraseña.
+- Edición de perfil: nombre, foto local o mediante URL, idioma, preferencias,
+  Spotify y contraseña.
+- Recuperación de contraseña mediante enlaces de un solo uso.
 - Búsqueda e importación de datos reales desde Open Library.
 - Actualización periódica de metadatos con `npm run catalog:refresh`.
 - Portadas incluidas como recursos locales para evitar dependencias externas en ejecución.
@@ -107,6 +111,8 @@ npm run db:seed
 - `GET /api/health`
 - `POST /api/auth/login`
 - `POST /api/auth/register`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
 - `GET /api/auth/me`
 - `POST /api/auth/logout`
 - `PUT /api/auth/profile`
@@ -125,6 +131,7 @@ npm run db:seed
 - `GET /api/integrations/status`
 - `GET /api/integrations/spotify/connect`
 - `GET /api/integrations/spotify/callback`
+- `GET /api/integrations/spotify/search?q=...&type=playlist`
 
 ## Configuración
 
@@ -138,6 +145,16 @@ Consulta `.env.example`.
 - `SPOTIFY_CLIENT_ID` y `SPOTIFY_CLIENT_SECRET`: credenciales de una app de Spotify.
 - `SPOTIFY_REDIRECT_URI`: callback registrado exactamente en Spotify.
 - `INTEGRATION_ENCRYPTION_KEY`: secreto largo y aleatorio para cifrar tokens OAuth.
+- `TRANSLATION_API_URL`: servicio compatible con LibreTranslate. Docker Compose
+  levanta uno automáticamente para el desarrollo local.
+- `NYT_BOOKS_API_KEY`: habilita el filtro opcional de best sellers oficiales.
+- `RESEND_API_KEY` y `EMAIL_FROM`: envío de correos para recuperar contraseñas.
+  En desarrollo, si no se configuran, la interfaz muestra el enlace de prueba.
+
+AniList no requiere credenciales y se usa automáticamente para publicaciones
+asiáticas. MyAnimeList requiere registrar una aplicación y no se necesita para
+este primer bloque porque AniList cubre búsqueda, portada, formato, autor,
+popularidad y sinopsis.
 
 Kindle y Apple Books no ofrecen una API pública para leer el progreso personal del
 usuario. La aplicación guarda manualmente la página actual y la plataforma usada,
@@ -169,9 +186,9 @@ El usuario de demostración existe únicamente cuando se ejecuta `npm run db:see
   una lista oficial de best sellers.
 - Los best sellers oficiales por año requieren `NYT_BOOKS_API_KEY`, obtenida en
   el portal para desarrolladores de The New York Times.
-- Para traducir títulos y sinopsis se puede configurar una instancia compatible
-  con LibreTranslate mediante `TRANSLATION_API_URL` y, si aplica,
-  `TRANSLATION_API_KEY`. Sin este servicio se conserva el texto original.
+- Docker Compose descarga LibreTranslate y traduce títulos y sinopsis al idioma
+  del perfil. Los nombres de autores se conservan en su forma oficial o
+  romanizada para no alterar nombres propios.
 - Las sinopsis se buscan primero en Open Library y luego en Google Books.
 - Spotify permite usar la playlist predeterminada, guardar un enlace personal o
   seleccionar playlists de la cuenta vinculada.
