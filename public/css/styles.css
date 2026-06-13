@@ -1539,7 +1539,7 @@ tr:last-child td {
 
 .ranking-filters {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 180px 130px auto;
+  grid-template-columns: 190px 1.2fr 1fr 180px 130px auto;
   gap: 12px;
   margin: 28px 0 12px;
 }

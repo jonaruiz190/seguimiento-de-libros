@@ -86,6 +86,7 @@ export const recommendationSchema = z.object({
 }).strict();
 
 export const rankingSchema = z.object({
+  source: z.enum(["openlibrary", "nyt"]).default("openlibrary"),
   author: z.string().trim().max(180).optional(),
   category: z.string().trim().max(100).optional(),
   minRating: z.coerce.number().min(0).max(5).default(0),

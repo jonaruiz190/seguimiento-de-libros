@@ -167,6 +167,8 @@ El usuario de demostración existe únicamente cuando se ejecuta `npm run db:see
 - Las recomendaciones cargan hasta 20 títulos por cada género favorito.
 - El Top 100 usa popularidad y valoraciones de Open Library; no se presenta como
   una lista oficial de best sellers.
+- Los best sellers oficiales por año requieren `NYT_BOOKS_API_KEY`, obtenida en
+  el portal para desarrolladores de The New York Times.
 - Para traducir títulos y sinopsis se puede configurar una instancia compatible
   con LibreTranslate mediante `TRANSLATION_API_URL` y, si aplica,
   `TRANSLATION_API_KEY`. Sin este servicio se conserva el texto original.

@@ -1183,7 +1183,8 @@ async function loadRanking(event) {
   $("#ranking-grid").innerHTML = "";
   const params = new URLSearchParams({
     minRating: $("#ranking-rating").value || "0",
-    language: state.user?.language || "es"
+    language: state.user?.language || "es",
+    source: $("#ranking-source").value
   });
   const author = $("#ranking-author").value.trim();
   const category = $("#ranking-category").value;
@@ -1207,15 +1208,24 @@ function renderRanking() {
   $("#ranking-grid").innerHTML = state.ranking.map((book) => `
     <article class="ranking-book">
       <strong class="ranking-book__number">#${book.rank}</strong>
-      <button class="ranking-book__cover" type="button"
-        data-preview-source="${escapeHtml(book.sourceId)}">
-        <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}">
-      </button>
+      ${book.source === "nyt" ? `
+        <a class="ranking-book__cover" href="${safeExternalUrl(book.buyUrl)}"
+          target="_blank" rel="noopener noreferrer">
+          <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}">
+        </a>
+      ` : `
+        <button class="ranking-book__cover" type="button"
+          data-preview-source="${escapeHtml(book.sourceId)}">
+          <img src="${safeImageUrl(book.cover)}" alt="Portada de ${escapeHtml(book.title)}">
+        </button>
+      `}
       <div>
         <h2>${escapeHtml(book.title)}</h2>
         <p>${escapeHtml(book.author)}</p>
-        <small>${ratingStars(book.rating)} ${formatDecimal(book.rating)}
-          · ${numberFormatter.format(book.readersCount)} lectores</small>
+        <small>${book.source === "nyt"
+          ? escapeHtml(book.categories[0] || "Best seller")
+          : `${ratingStars(book.rating)} ${formatDecimal(book.rating)}
+            · ${numberFormatter.format(book.readersCount)} lectores`}</small>
       </div>
     </article>
   `).join("");

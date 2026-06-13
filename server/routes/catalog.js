@@ -111,6 +111,53 @@ export function createCatalogRouter({ pool, config }) {
 
   router.get("/ranking", asyncHandler(async (request, response) => {
     const input = validate(rankingSchema, request.query);
+    if (request.query.source === "nyt") {
+      if (!config.nytBooksApiKey) {
+        return response.status(503).json({
+          error: "Configura NYT_BOOKS_API_KEY para consultar best sellers oficiales."
+        });
+      }
+      if (input.year === undefined) {
+        return response.status(400).json({
+          error: "Selecciona un año para consultar best sellers."
+        });
+      }
+      const url = new URL("https://api.nytimes.com/svc/books/v3/lists/full-overview.json");
+      url.searchParams.set("published_date", `${input.year}-01-01`);
+      url.searchParams.set("api-key", config.nytBooksApiKey);
+      const nytResponse = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+      if (!nytResponse.ok) {
+        return response.status(502).json({
+          error: "NYT Books no pudo devolver el ranking para ese año."
+        });
+      }
+      const payload = await nytResponse.json();
+      const books = (payload.results?.lists || []).flatMap((list) =>
+        (list.books || []).map((book) => ({
+          source: "nyt",
+          sourceId: book.primary_isbn13 || `${list.list_id}-${book.rank}`,
+          title: book.title,
+          author: book.author,
+          year: input.year,
+          pages: 1,
+          rating: 0,
+          ratingsCount: 0,
+          readersCount: 0,
+          cover: book.book_image || "/covers/fallback.svg",
+          categories: [list.display_name],
+          synopsis: book.description || "Sinopsis no disponible.",
+          isbn13: book.primary_isbn13 || null,
+          buyUrl: book.amazon_product_url || null,
+          rank: book.rank
+        }))
+      );
+      return response.json({
+        source: "The New York Times Books API",
+        rankingType: `best sellers publicados en ${input.year}`,
+        officialBestseller: true,
+        books: books.slice(0, 100)
+      });
+    }
     const query = [];
     if (input.author) query.push(`author:"${input.author.replaceAll('"', "")}"`);
     if (input.category) query.push(`subject:${categorySubject(input.category)}`);
