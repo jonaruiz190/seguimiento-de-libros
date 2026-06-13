@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Aplicación multiplataforma para descubrir libros y registrar tus lecturas.">
+  <title>Seguimiento de Libros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="login-screen" class="login-screen">
+    <section class="login-panel" aria-labelledby="login-title">
+      <div class="brand brand--login">
+        <span class="brand__mark" aria-hidden="true">S</span>
+        <span>Seguimiento de Libros</span>
+      </div>
+      <div class="login-copy">
+        <p class="eyebrow">Tu biblioteca, siempre contigo</p>
+        <h1 id="login-title">Cada libro deja una huella.</h1>
+        <p>Descubre tu próxima lectura, registra tu progreso y conserva todo lo que un libro te hizo pensar.</p>
+      </div>
+      <form id="login-form" class="login-form">
+        <label for="email">Correo electrónico</label>
+        <input id="email" name="email" type="email" autocomplete="email" placeholder="lector@ejemplo.com" required>
+        <label for="password">Contraseña</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Tu contraseña" required>
+        <p id="login-error" class="form-error" role="alert"></p>
+        <button class="button button--primary button--full" type="submit">Entrar a mi biblioteca</button>
+        <p class="demo-hint">Prueba: <strong>ana@libros.com</strong> / <strong>libros123</strong></p>
+      </form>
+    </section>
+    <aside class="login-art" aria-hidden="true">
+      <div class="quote-card">
+        <span class="quote-card__number">01</span>
+        <blockquote>“Un lector vive mil vidas antes de morir.”</blockquote>
+        <cite>George R. R. Martin</cite>
+      </div>
+    </aside>
+  </div>
+
+  <div id="app" class="app is-hidden">
+    <header class="topbar">
+      <a class="brand" href="#inicio" data-view-link="home">
+        <span class="brand__mark" aria-hidden="true">S</span>
+        <span>Seguimiento</span>
+      </a>
+      <nav class="desktop-nav" aria-label="Navegación principal">
+        <button class="nav-link is-active" type="button" data-view="home">Inicio</button>
+        <button class="nav-link" type="button" data-view="tracking">Mi seguimiento</button>
+      </nav>
+      <div class="user-menu">
+        <button id="user-button" class="user-button" type="button" aria-expanded="false">
+          <span id="user-avatar" class="avatar">A</span>
+          <span id="user-name" class="user-button__name">Lector</span>
+          <span aria-hidden="true">⌄</span>
+        </button>
+        <button id="logout-button" class="logout-button is-hidden" type="button">Cerrar sesión</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="home-view" class="view">
+        <div class="hero">
+          <div class="hero__copy">
+            <p id="welcome-message" class="eyebrow">Buenas tardes</p>
+            <h1>¿Qué historia quieres vivir ahora?</h1>
+            <p>Recomendaciones seleccionadas a partir de tus géneros y lecturas favoritas.</p>
+          </div>
+          <div class="hero__search">
+            <label class="search-box" for="book-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="book-search" type="search" placeholder="Busca por título, autor o categoría">
+            </label>
+          </div>
+        </div>
+
+        <section class="content-section" aria-labelledby="recommendations-title">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Elegidos para ti</p>
+              <h2 id="recommendations-title">Lecturas recomendadas</h2>
+            </div>
+            <div id="category-filters" class="filters" aria-label="Filtros por categoría"></div>
+          </div>
+          <div id="recommendations-grid" class="book-grid"></div>
+          <p id="empty-search" class="empty-state is-hidden">No encontramos libros con esa búsqueda.</p>
+        </section>
+
+        <section class="reading-banner">
+          <div>
+            <p class="eyebrow">Tu ritmo lector</p>
+            <h2>Un capítulo a la vez también cuenta.</h2>
+          </div>
+          <div class="reading-stats">
+            <div><strong id="stat-reading">0</strong><span>Leyendo</span></div>
+            <div><strong id="stat-read">0</strong><span>Leídos</span></div>
+            <div><strong id="stat-next">0</strong><span>Por leer</span></div>
+          </div>
+        </section>
+      </section>
+
+      <section id="tracking-view" class="view is-hidden">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Tu espacio personal</p>
+            <h1>Mi seguimiento</h1>
+            <p>Organiza tus lecturas, puntúa tus favoritas y guarda tus impresiones.</p>
+          </div>
+          <button id="add-book-button" class="button button--primary" type="button">+ Añadir libro</button>
+        </div>
+
+        <div class="tracking-toolbar">
+          <label class="search-box search-box--compact" for="tracking-search">
+            <span aria-hidden="true">⌕</span>
+            <input id="tracking-search" type="search" placeholder="Buscar en mi lista">
+          </label>
+          <select id="status-filter" aria-label="Filtrar por estado">
+            <option value="all">Todos los estados</option>
+            <option value="Leyendo">Leyendo</option>
+            <option value="Próximo a leer">Próximo a leer</option>
+            <option value="Leído">Leído</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre del libro</th>
+                <th>Estado</th>
+                <th>Puntuación</th>
+                <th>Comentarios</th>
+                <th>Formato</th>
+                <th><span class="sr-only">Acciones</span></th>
+              </tr>
+            </thead>
+            <tbody id="tracking-table-body"></tbody>
+          </table>
+          <p id="empty-tracking" class="empty-state is-hidden">Aún no hay libros que coincidan con este filtro.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="mobile-nav" aria-label="Navegación móvil">
+      <button class="mobile-nav__item is-active" type="button" data-view="home"><span>⌂</span>Inicio</button>
+      <button class="mobile-nav__item" type="button" data-view="tracking"><span>▤</span>Seguimiento</button>
+    </nav>
+  </div>
+
+  <div id="book-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal__backdrop" data-close-modal></div>
+    <article class="modal__content">
+      <button class="modal__close" type="button" data-close-modal aria-label="Cerrar">×</button>
+      <div id="book-detail"></div>
+    </article>
+  </div>
+
+  <div id="tracking-modal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="tracking-modal-title">
+    <div class="modal__backdrop" data-close-tracking></div>
+    <form id="tracking-form" class="modal__content modal__content--form">
+      <button class="modal__close" type="button" data-close-tracking aria-label="Cerrar">×</button>
+      <p class="eyebrow">Nueva lectura</p>
+      <h2 id="tracking-modal-title">Añadir a mi seguimiento</h2>
+      <input id="tracking-id" type="hidden">
+      <label for="tracking-book">Libro</label>
+      <select id="tracking-book" required></select>
+      <div class="form-grid">
+        <label>Estado
+          <select id="tracking-status" required>
+            <option>Leyendo</option>
+            <option>Próximo a leer</option>
+            <option>Leído</option>
+          </select>
+        </label>
+        <label>Formato
+          <select id="tracking-format" required>
+            <option>Físico</option>
+            <option>Digital</option>
+          </select>
+        </label>
+      </div>
+      <label for="tracking-rating">Puntuación</label>
+      <select id="tracking-rating">
+        <option value="0">Sin puntuar</option>
+        <option value="1">1 estrella</option>
+        <option value="2">2 estrellas</option>
+        <option value="3">3 estrellas</option>
+        <option value="4">4 estrellas</option>
+        <option value="5">5 estrellas</option>
+      </select>
+      <label for="tracking-comment">Comentarios</label>
+      <textarea id="tracking-comment" rows="4" placeholder="¿Qué te está pareciendo?"></textarea>
+      <button class="button button--primary button--full" type="submit">Guardar seguimiento</button>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="js/app.js"></script>
+</body>
+</html>
