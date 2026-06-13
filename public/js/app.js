@@ -238,6 +238,7 @@ function resetToLogin() {
   $("#app").classList.add("is-hidden");
   $("#login-screen").classList.remove("is-hidden");
   $("#user-dropdown").classList.add("is-hidden");
+  $("#user-button").setAttribute("aria-expanded", "false");
   stopSpotifyPlayback();
   $("#login-form").reset();
   $("#email").focus();
@@ -246,6 +247,7 @@ function resetToLogin() {
 function toggleUserMenu() {
   const menu = $("#user-dropdown");
   const expanded = !menu.classList.contains("is-hidden");
+  if (!expanded) closeSpotifyPanel();
   menu.classList.toggle("is-hidden", expanded);
   $("#user-button").setAttribute("aria-expanded", String(!expanded));
 }
@@ -579,6 +581,7 @@ function closeCatalogModal() {
 
 function openProfileModal() {
   $("#user-dropdown").classList.add("is-hidden");
+  $("#user-button").setAttribute("aria-expanded", "false");
   $("#profile-form").reset();
   $("#profile-name").value = state.user.name;
   $("#profile-avatar").value = state.user.avatarUrl || "";

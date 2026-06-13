@@ -458,6 +458,7 @@ textarea:focus {
 
 .user-dropdown {
   position: absolute;
+  z-index: 60;
   top: 48px;
   right: 0;
   display: grid;
