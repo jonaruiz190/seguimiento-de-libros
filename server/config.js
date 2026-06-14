@@ -5,9 +5,18 @@ function parsePositiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseOrigins(primaryOrigin, value) {
+  const origins = String(value || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  return [...new Set([primaryOrigin, ...origins])];
+}
+
 export function loadConfig() {
   const nodeEnv = process.env.NODE_ENV || "development";
   const databaseUrl = process.env.DATABASE_URL;
+  const appOrigin = process.env.APP_ORIGIN || "http://localhost:3000";
 
   if (!databaseUrl) {
     throw new Error("DATABASE_URL es obligatoria.");
@@ -18,7 +27,8 @@ export function loadConfig() {
     isProduction: nodeEnv === "production",
     port: parsePositiveInteger(process.env.PORT, 3000),
     databaseUrl,
-    appOrigin: process.env.APP_ORIGIN || "http://localhost:3000",
+    appOrigin,
+    allowedOrigins: parseOrigins(appOrigin, process.env.APP_ALLOWED_ORIGINS),
     sessionDays: parsePositiveInteger(process.env.SESSION_DAYS, 7),
     trustProxy: parsePositiveInteger(process.env.TRUST_PROXY, 0),
     spotifyClientId: process.env.SPOTIFY_CLIENT_ID || "",

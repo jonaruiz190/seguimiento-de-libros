@@ -14,7 +14,8 @@ export function requireTrustedOrigin(config) {
     if (!cookies.sid) return next();
 
     const origin = request.get("origin");
-    if (origin !== config.appOrigin) {
+    const allowedOrigins = config.allowedOrigins || [config.appOrigin];
+    if (!allowedOrigins.includes(origin)) {
       return response.status(403).json({ error: "Origen no autorizado." });
     }
     return next();

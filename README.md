@@ -139,6 +139,8 @@ Consulta `.env.example`.
 
 - `DATABASE_URL`: conexión PostgreSQL.
 - `APP_ORIGIN`: URL pública exacta de la aplicación.
+- `APP_ALLOWED_ORIGINS`: orígenes adicionales separados por coma para pruebas
+  locales o túneles temporales. No uses comodines.
 - `SESSION_DAYS`: duración de las sesiones.
 - `TRUST_PROXY`: usa `1` si la plataforma termina HTTPS mediante un proxy.
 - `NODE_ENV=production`: activa cookies `Secure` y configuración de producción.

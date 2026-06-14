@@ -46,6 +46,23 @@ test("bloquea mutaciones autenticadas desde otro origen", async () => {
   assert.equal(response.status, 403);
 });
 
+test("permite mutaciones desde un origen adicional autorizado", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const response = await request(createApp({
+    pool,
+    config: {
+      ...config,
+      allowedOrigins: [config.appOrigin, "http://127.0.0.1:3000"]
+    }
+  }))
+    .post("/api/tracking")
+    .set("Cookie", "sid=token")
+    .set("Origin", "http://127.0.0.1:3000")
+    .send({});
+
+  assert.notEqual(response.status, 403);
+});
+
 test("registra un usuario y crea una cookie de sesión HttpOnly", async () => {
   const user = {
     id: "22222222-2222-4222-8222-222222222222",
