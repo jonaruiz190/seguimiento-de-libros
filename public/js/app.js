@@ -712,7 +712,8 @@ function openBookModal(bookId) {
         <p class="book-detail__author">de ${escapeHtml(book.author)}</p>
         <div class="book-detail__facts">
           <span>Publicado<strong>${escapeHtml(book.year)}</strong></span>
-          <span>Páginas<strong>${escapeHtml(book.pages)}</strong></span>
+          <span>${escapeHtml(progressUnitTitle(book))}
+            <strong>${escapeHtml(progressTotal(book))}</strong></span>
           <span>Valoración<strong><span class="stars">${ratingStars(book.rating)}</span>
             ${escapeHtml(book.rating)}</strong></span>
         </div>
@@ -721,8 +722,10 @@ function openBookModal(bookId) {
           .map((category) => `<span class="tag">${escapeHtml(category)}</span>`)
           .join("")}</div>
         ${tracked?.currentPage
-          ? `<p class="reading-progress">Vas por la página <strong>${tracked.currentPage}</strong>
-              de ${escapeHtml(book.pages)}.</p>`
+          ? `<p class="reading-progress">Vas por ${escapeHtml(progressUnitPrefix(book))}
+              <strong>${tracked.currentPage}</strong>${book.progressTotalKnown === false
+                ? "."
+                : ` de ${escapeHtml(book.pages)}.`}</p>`
           : ""}
         ${readingLinks.length ? `
           <div class="reading-links">
@@ -780,7 +783,8 @@ function renderExternalBookDetail(book) {
         ${book.imported ? '<p class="library-label">En tu biblioteca</p>' : ""}
         <div class="book-detail__facts">
           <span>Publicado<strong>${escapeHtml(book.year)}</strong></span>
-          <span>Páginas<strong>${escapeHtml(book.pages)}</strong></span>
+          <span>${escapeHtml(progressUnitTitle(book))}
+            <strong>${escapeHtml(progressTotal(book))}</strong></span>
           <span>Valoración<strong>${formatDecimal(book.rating)} / 5</strong></span>
         </div>
         <p class="book-detail__synopsis">${escapeHtml(book.synopsis)}</p>
@@ -1241,17 +1245,17 @@ function renderTracking() {
     if (!book) return "";
     return `
       <tr>
-        <td>
+        <td data-label="Libro">
           <div class="table-book">
             <img src="${safeImageUrl(book.cover)}" alt="">
             <div><strong>${escapeHtml(book.title)}</strong><span>${escapeHtml(book.author)}</span></div>
           </div>
         </td>
-        <td><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></td>
-        <td><span class="stars">${item.rating ? ratingStars(item.rating) : "Sin puntuar"}</span></td>
-        <td class="comment-cell">${escapeHtml(item.comment || "Sin comentarios")}</td>
-        <td>${formatTrackingSource(item)}</td>
-        <td class="row-actions">
+        <td data-label="Estado"><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></td>
+        <td data-label="Puntuación"><span class="stars">${item.rating ? ratingStars(item.rating) : "Sin puntuar"}</span></td>
+        <td data-label="Comentarios" class="comment-cell">${escapeHtml(item.comment || "Sin comentarios")}</td>
+        <td data-label="Formato">${formatTrackingSource(item)}</td>
+        <td data-label="Acciones" class="row-actions">
           <button class="icon-button" type="button" data-view-book="${escapeHtml(book.id)}">Ver</button>
           <button class="icon-button" type="button" data-edit="${escapeHtml(item.id)}">Editar</button>
           <button class="icon-button" type="button" data-delete="${escapeHtml(item.id)}"
@@ -1332,14 +1336,21 @@ function applyTrackingFieldRules() {
   const currentPage = $("#tracking-current-page");
   const book = findBook($("#tracking-book").value);
   const pages = Math.max(1, Number(book?.pages) || 1);
+  const totalKnown = book?.progressTotalKnown !== false;
+  const chapterProgress = book?.progressUnit === "chapter";
 
   provider.disabled = format === "Físico";
   if (provider.disabled) provider.value = "";
 
-  currentPage.max = String(pages);
-  currentPage.disabled = status === "Leído";
-  if (status === "Leído") currentPage.value = String(pages);
-  if (!currentPage.disabled && Number(currentPage.value) > pages) {
+  $("#tracking-progress-label").textContent = chapterProgress
+    ? "Capítulo actual"
+    : "Página actual";
+  currentPage.placeholder = chapterProgress ? "Ejemplo: 250" : "Ejemplo: 127";
+  if (totalKnown) currentPage.max = String(pages);
+  else currentPage.removeAttribute("max");
+  currentPage.disabled = status === "Leído" && totalKnown;
+  if (status === "Leído" && totalKnown) currentPage.value = String(pages);
+  if (totalKnown && !currentPage.disabled && Number(currentPage.value) > pages) {
     currentPage.value = String(pages);
   }
 }
@@ -1419,6 +1430,7 @@ function renderFormatHeatmap(rows, monthly = []) {
   const months = monthly.length
     ? monthly.map((row) => row.month)
     : [...new Set(rows.map((row) => row.month))].sort();
+  const monthLabels = new Map(monthly.map((row) => [row.month, row.label]));
   const formats = ["Físico", "Digital", "Ambos"];
   const colors = {
     "Físico": "#b98a4a",
@@ -1429,7 +1441,9 @@ function renderFormatHeatmap(rows, monthly = []) {
   const max = Math.max(1, ...values.values());
   container.innerHTML = `
     <div class="heatmap-corner"></div>
-    ${months.map((month) => `<span class="heatmap-month">${escapeHtml(month.slice(5))}</span>`).join("")}
+    ${months.map((month) => `<span class="heatmap-month">${escapeHtml(
+      monthLabels.get(month) || formatMonthKey(month)
+    )}</span>`).join("")}
     ${formats.map((format) => `
       <strong class="heatmap-label">${escapeHtml(format)}</strong>
       ${months.map((month) => {
@@ -1618,6 +1632,26 @@ function applyLanguage() {
 
 function findBook(id) {
   return state.books.find((book) => book.id === id);
+}
+
+function progressUnitTitle(book) {
+  return book?.progressUnit === "chapter" ? "Capítulos" : "Páginas";
+}
+
+function progressUnitPrefix(book) {
+  return book?.progressUnit === "chapter" ? "el capítulo" : "la página";
+}
+
+function progressTotal(book) {
+  return book?.progressTotalKnown === false ? "En publicación" : String(book?.pages || 1);
+}
+
+function formatMonthKey(month) {
+  const [year, monthNumber] = String(month).split("-").map(Number);
+  if (!year || !monthNumber) return month;
+  return new Intl.DateTimeFormat("es", { month: "short", year: "2-digit", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, monthNumber - 1, 1)))
+    .replace(".", "");
 }
 
 const numberFormatter = new Intl.NumberFormat("es");

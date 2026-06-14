@@ -61,6 +61,8 @@ export function normalizeOpenLibraryBook(document) {
     author: text(first(document.author_name), "Autor desconocido", 180),
     year: year >= 0 && year <= 3000 ? year : new Date().getFullYear(),
     pages: pages > 0 && pages <= 100000 ? pages : 1,
+    progressUnit: "page",
+    progressTotalKnown: pages > 0 && pages <= 100000,
     rating: Math.min(5, Math.max(0, Number(document.ratings_average) || 0)),
     ratingsCount: Math.max(0, Number(document.ratings_count) || 0),
     readersCount: Math.max(

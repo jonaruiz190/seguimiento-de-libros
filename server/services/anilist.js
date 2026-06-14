@@ -100,10 +100,11 @@ export async function getAniListBook(sourceId, language = "es") {
   return normalizeAniListMedia(payload.data.Media, language);
 }
 
-function normalizeAniListMedia(media, language) {
+export function normalizeAniListMedia(media, language) {
   const authorEdge = media.staff?.edges?.find((edge) =>
     /story|original creator|manga/i.test(edge.role || "")
   ) || media.staff?.edges?.[0];
+  const chapters = Number(media.chapters);
   return {
     source: "anilist",
     sourceId: String(media.id),
@@ -111,7 +112,9 @@ function normalizeAniListMedia(media, language) {
     originalTitle: media.title?.native || null,
     author: authorEdge?.node?.name?.full || authorEdge?.node?.name?.native || "Autor desconocido",
     year: media.startDate?.year || new Date().getFullYear(),
-    pages: media.chapters || media.volumes || 1,
+    pages: chapters > 0 ? chapters : 1,
+    progressUnit: "chapter",
+    progressTotalKnown: chapters > 0,
     rating: Number(media.averageScore || 0) / 20,
     ratingsCount: Number(media.popularity || 0),
     readersCount: Number(media.popularity || 0),

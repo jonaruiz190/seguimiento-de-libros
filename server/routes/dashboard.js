@@ -44,7 +44,12 @@ export function createDashboardRouter({ pool }) {
              WHERE t.status = 'Leído'
                AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
            ), 0)::int AS total_days,
-           COALESCE(SUM(b.pages) FILTER (WHERE t.status = 'Leído'), 0)::int AS pages_read,
+           COALESCE(SUM(
+             CASE WHEN b.progress_total_known
+               THEN b.pages
+               ELSE COALESCE(t.current_page, 0)
+             END
+           ) FILTER (WHERE t.status = 'Leído'), 0)::int AS pages_read,
            ROUND(AVG(t.rating) FILTER (
              WHERE t.status = 'Leído' AND t.rating > 0
            ), 1) AS average_rating,

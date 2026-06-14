@@ -116,16 +116,23 @@ export function createTrackingRouter({ pool }) {
 }
 
 async function normalizeTrackingItem(pool, item) {
-  const result = await pool.query("SELECT pages FROM books WHERE id = $1", [item.bookId]);
+  const result = await pool.query(
+    `SELECT pages, progress_total_known AS "progressTotalKnown"
+     FROM books WHERE id = $1`,
+    [item.bookId]
+  );
   if (!result.rowCount) return item;
   const pages = Math.max(1, Number(result.rows[0].pages) || 1);
+  const totalKnown = result.rows[0].progressTotalKnown !== false;
   return {
     ...item,
     readingProvider: item.format === "Físico" ? null : item.readingProvider,
-    currentPage: item.status === "Leído"
+    currentPage: item.status === "Leído" && totalKnown
       ? pages
       : item.currentPage === null
         ? null
-        : Math.min(item.currentPage, pages)
+        : totalKnown
+          ? Math.min(item.currentPage, pages)
+          : item.currentPage
   };
 }

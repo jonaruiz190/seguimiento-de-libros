@@ -213,9 +213,10 @@ export function createCatalogRouter({ pool, config }) {
         `INSERT INTO books
           (id, title, author, publication_year, pages, rating, cover_url, synopsis,
            isbn_13, publisher, language, catalog_source, source_id, preview_url,
-           apple_books_url, kindle_url, metadata_synced_at)
+           apple_books_url, kindle_url, progress_unit, progress_total_known,
+           metadata_synced_at)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12,
-                 $13, $14, $15, $16, NOW())
+                 $13, $14, $15, $16, $17, $18, NOW())
          ON CONFLICT (id) DO UPDATE SET
            title = EXCLUDED.title, author = EXCLUDED.author,
            publication_year = EXCLUDED.publication_year, pages = EXCLUDED.pages,
@@ -225,13 +226,16 @@ export function createCatalogRouter({ pool, config }) {
            preview_url = EXCLUDED.preview_url,
            apple_books_url = EXCLUDED.apple_books_url,
            kindle_url = EXCLUDED.kindle_url,
+           progress_unit = EXCLUDED.progress_unit,
+           progress_total_known = EXCLUDED.progress_total_known,
            metadata_synced_at = NOW(), updated_at = NOW()
          RETURNING id`,
         [
           id, book.title, book.author, book.year, Math.max(1, book.pages), book.rating,
           book.cover, book.synopsis, book.isbn13 || null, book.publisher || null,
           book.language, input.source, book.sourceId, book.previewUrl || book.externalUrl || null,
-          book.appleBooksUrl || null, book.kindleUrl || null
+          book.appleBooksUrl || null, book.kindleUrl || null,
+          book.progressUnit || "page", book.progressTotalKnown !== false
         ]
       );
       await client.query("DELETE FROM book_categories WHERE book_id = $1", [id]);

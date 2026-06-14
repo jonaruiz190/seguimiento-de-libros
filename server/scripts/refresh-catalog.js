@@ -26,12 +26,14 @@ try {
              title = $1, author = $2, publication_year = $3, pages = $4,
              cover_url = $5, synopsis = $6, isbn_13 = $7, publisher = $8,
              language = $9, preview_url = $10, apple_books_url = $11,
-             kindle_url = $12, metadata_synced_at = NOW(), updated_at = NOW()
-           WHERE id = $13`,
+             kindle_url = $12, progress_unit = $13, progress_total_known = $14,
+             metadata_synced_at = NOW(), updated_at = NOW()
+           WHERE id = $15`,
           [
             book.title, book.author, book.year, book.pages, book.cover,
             book.synopsis, book.isbn13, book.publisher, book.language,
-            book.previewUrl, book.appleBooksUrl, book.kindleUrl, row.id
+            book.previewUrl, book.appleBooksUrl, book.kindleUrl,
+            book.progressUnit || "page", book.progressTotalKnown !== false, row.id
           ]
         );
         await client.query("DELETE FROM book_categories WHERE book_id = $1", [row.id]);

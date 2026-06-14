@@ -1860,6 +1860,80 @@ tr:last-child td {
     width: 100%;
   }
 
+  #tracking-view .table-wrap {
+    margin: 0 16px 84px;
+    overflow: visible;
+    background: transparent;
+    border: 0;
+  }
+
+  #tracking-view table,
+  #tracking-view tbody,
+  #tracking-view tr,
+  #tracking-view td {
+    display: block;
+    width: 100%;
+  }
+
+  #tracking-view table {
+    min-width: 0;
+  }
+
+  #tracking-view thead {
+    display: none;
+  }
+
+  #tracking-view tbody {
+    display: grid;
+    gap: 14px;
+  }
+
+  #tracking-view tr {
+    overflow: hidden;
+    background: var(--white);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+
+  #tracking-view td {
+    display: grid;
+    padding: 12px 16px;
+    grid-template-columns: minmax(92px, 0.35fr) 1fr;
+    gap: 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  #tracking-view td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  #tracking-view td:first-child {
+    display: block;
+    padding: 16px;
+    background: #efede6;
+  }
+
+  #tracking-view td:first-child::before {
+    display: none;
+  }
+
+  #tracking-view td:last-child {
+    border-bottom: 0;
+  }
+
+  #tracking-view .comment-cell {
+    max-width: none;
+  }
+
+  #tracking-view .row-actions {
+    white-space: normal;
+  }
+
   .book-detail {
     grid-template-columns: 1fr;
   }

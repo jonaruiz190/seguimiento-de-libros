@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { normalizeAniListMedia } from "../server/services/anilist.js";
 import { normalizeOpenLibraryBook } from "../server/services/catalog.js";
 
 test("normaliza resultados de Open Library para el catálogo local", () => {
@@ -26,4 +27,23 @@ test("normaliza resultados de Open Library para el catálogo local", () => {
   assert.match(book.kindleUrl, /amazon\.com/);
   assert.equal(book.rating, 4.25);
   assert.equal(book.readersCount, 450);
+  assert.equal(book.progressTotalKnown, true);
+  assert.equal(book.progressUnit, "page");
+});
+
+test("mantiene abierto el progreso de publicaciones activas de AniList", () => {
+  const book = normalizeAniListMedia({
+    id: 123,
+    title: { english: "Omniscient Reader" },
+    chapters: null,
+    volumes: 10,
+    countryOfOrigin: "KR",
+    genres: [],
+    staff: { edges: [] },
+    coverImage: {}
+  }, "es");
+
+  assert.equal(book.pages, 1);
+  assert.equal(book.progressUnit, "chapter");
+  assert.equal(book.progressTotalKnown, false);
 });
