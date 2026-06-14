@@ -84,3 +84,20 @@ test("rechaza una finalización anterior al inicio", () => {
     currentPage: 120
   }), /no son válidos/);
 });
+
+test("acepta seguimiento en formato ambos con Webtoons", () => {
+  const result = validate(trackingSchema, {
+    bookId: "tower-of-god",
+    status: "Leyendo",
+    rating: 4,
+    comment: "",
+    format: "Ambos",
+    startedAt: "2026-06-01",
+    finishedAt: null,
+    readingProvider: "Webtoons",
+    currentPage: 12
+  });
+
+  assert.equal(result.format, "Ambos");
+  assert.equal(result.readingProvider, "Webtoons");
+});

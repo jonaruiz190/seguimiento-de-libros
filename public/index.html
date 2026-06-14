@@ -135,7 +135,7 @@
             <form id="hero-catalog-form" class="hero-catalog-form">
               <label class="search-box" for="hero-catalog-search">
                 <span aria-hidden="true">⌕</span>
-                <input id="hero-catalog-search" type="search" minlength="2"
+                <input id="hero-catalog-search" type="search" minlength="2" list="book-suggestions"
                   placeholder="Busca libros reales por título, autor o ISBN" required>
               </label>
               <button class="button button--primary" type="submit">Buscar en catálogo</button>
@@ -181,10 +181,15 @@
             <p>Organiza tus lecturas, puntúa tus favoritas y guarda tus impresiones.</p>
           </div>
           <div class="page-heading__actions">
+            <button id="refresh-tracking" class="button button--secondary" type="button">
+              Actualizar
+            </button>
             <button id="catalog-button" class="button button--secondary" type="button">
               Buscar catálogo real
             </button>
-            <button id="add-book-button" class="button button--primary" type="button">+ Añadir libro</button>
+            <button id="add-book-button" class="button button--primary" type="button">
+              Explorar libros
+            </button>
           </div>
         </div>
 
@@ -241,13 +246,15 @@
           </label>
           <label>Formato
             <select id="dashboard-format">
-              <option value="">Todos</option><option>Físico</option><option>Digital</option>
+              <option value="">Todos</option><option>Físico</option>
+              <option>Digital</option><option>Ambos</option>
             </select>
           </label>
           <label>Aplicación
             <select id="dashboard-provider">
               <option value="">Todas</option><option>Kindle</option>
-              <option>Apple Books</option><option>Google Books</option><option>Otro</option>
+              <option>Apple Books</option><option>Google Books</option>
+              <option>Webtoons</option><option>Otro</option>
             </select>
           </label>
           <button class="button button--primary" type="submit">Aplicar</button>
@@ -427,6 +434,7 @@
           <select id="tracking-format" required>
             <option>Físico</option>
             <option>Digital</option>
+            <option>Ambos</option>
           </select>
         </label>
       </div>
@@ -456,6 +464,7 @@
             <option>Kindle</option>
             <option>Apple Books</option>
             <option>Google Books</option>
+            <option>Webtoons</option>
             <option>Otro</option>
           </select>
         </label>
@@ -481,7 +490,7 @@
       <form id="catalog-search-form" class="catalog-search">
         <label class="search-box" for="catalog-search">
           <span aria-hidden="true">⌕</span>
-          <input id="catalog-search" type="search" minlength="2"
+          <input id="catalog-search" type="search" minlength="2" list="book-suggestions"
             placeholder="Título, autor o ISBN" required>
         </label>
         <button class="button button--primary" type="submit">Buscar</button>
@@ -612,6 +621,11 @@
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <datalist id="book-suggestions"></datalist>
+  <div id="global-loader" class="global-loader is-hidden" role="status" aria-live="polite">
+    <span class="loading-spinner" aria-hidden="true"></span>
+    <strong id="global-loader-text">Cargando...</strong>
+  </div>
   <script src="/js/app.js"></script>
 </body>
 </html>

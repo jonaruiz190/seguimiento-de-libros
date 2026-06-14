@@ -3,12 +3,7 @@ import { Router } from "express";
 import { asyncHandler, requireAuth } from "../middleware.js";
 import { BOOK_CATEGORIES, categorySubject } from "../catalog-categories.js";
 import { getAniListBook, searchAniList } from "../services/anilist.js";
-import {
-  getOpenLibraryBook,
-  searchOpenLibrary,
-  translateBook,
-  translateBookTitles
-} from "../services/catalog.js";
+import { getOpenLibraryBook, searchOpenLibrary, translateBook } from "../services/catalog.js";
 import {
   catalogImportSchema,
   catalogSearchSchema,
@@ -78,18 +73,11 @@ export function createCatalogRouter({ pool, config }) {
       error.status = 502;
       throw error;
     }
-    const localized = input.category
-      ? await localizeBooks(
-        recommendations,
-        input.language || request.user.language || "es",
-        config
-      )
-      : recommendations;
-    const imported = await importedSourceKeys(pool, localized);
+    const imported = await importedSourceKeys(pool, recommendations);
     response.set("Cache-Control", "private, max-age=300");
     response.json({
       categories,
-      books: localized.map((book) => ({
+      books: recommendations.map((book) => ({
         ...book,
         imported: imported.has(`${book.source}:${book.sourceId}`)
       }))
@@ -109,10 +97,8 @@ export function createCatalogRouter({ pool, config }) {
     const books = dedupeBooks(settled.flatMap((result) =>
       result.status === "fulfilled" ? result.value : []
     ));
-    const firstPage = await localizeBooks(books.slice(0, 24), input.language || "es", config);
-    const localized = [...firstPage, ...books.slice(24)];
     response.set("Cache-Control", "private, max-age=300");
-    response.json({ books: localized });
+    response.json({ books });
   }));
 
   router.get("/books/:sourceId", asyncHandler(async (request, response) => {
@@ -298,9 +284,4 @@ async function importedSourceKeys(pool, books) {
     [openLibraryIds, aniListIds]
   );
   return new Set(result.rows.map((row) => `${row.catalog_source}:${row.source_id}`));
-}
-
-async function localizeBooks(books, language, config) {
-  if (!config.translationApiUrl) return books;
-  return translateBookTitles(books, language, config);
 }

@@ -17,11 +17,12 @@ export function createTrackingRouter({ pool }) {
        ORDER BY updated_at DESC`,
       [request.user.id]
     );
+    response.set("Cache-Control", "no-store");
     response.json({ tracking: result.rows });
   }));
 
   router.post("/", asyncHandler(async (request, response) => {
-    const item = validate(trackingSchema, request.body);
+    const item = await normalizeTrackingItem(pool, validate(trackingSchema, request.body));
     try {
       const result = await pool.query(
         `INSERT INTO tracking
@@ -66,7 +67,7 @@ export function createTrackingRouter({ pool }) {
   }));
 
   router.put("/:id", asyncHandler(async (request, response) => {
-    const item = validate(trackingSchema, request.body);
+    const item = await normalizeTrackingItem(pool, validate(trackingSchema, request.body));
     const result = await pool.query(
       `UPDATE tracking
        SET status = $1, rating = $2, comment = $3, format = $4,
@@ -112,4 +113,19 @@ export function createTrackingRouter({ pool }) {
   }));
 
   return router;
+}
+
+async function normalizeTrackingItem(pool, item) {
+  const result = await pool.query("SELECT pages FROM books WHERE id = $1", [item.bookId]);
+  if (!result.rowCount) return item;
+  const pages = Math.max(1, Number(result.rows[0].pages) || 1);
+  return {
+    ...item,
+    readingProvider: item.format === "Físico" ? null : item.readingProvider,
+    currentPage: item.status === "Leído"
+      ? pages
+      : item.currentPage === null
+        ? null
+        : Math.min(item.currentPage, pages)
+  };
 }

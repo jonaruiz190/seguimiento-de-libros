@@ -22,10 +22,12 @@ export const trackingSchema = z.object({
   status: z.enum(["Leyendo", "Próximo a leer", "Leído"]),
   rating: z.number().int().min(0).max(5),
   comment: z.string().trim().max(2000),
-  format: z.enum(["Físico", "Digital"]),
+  format: z.enum(["Físico", "Digital", "Ambos"]),
   startedAt: z.iso.date().nullable(),
   finishedAt: z.iso.date().nullable(),
-  readingProvider: z.enum(["Kindle", "Apple Books", "Google Books", "Otro"]).nullable(),
+  readingProvider: z.enum([
+    "Kindle", "Apple Books", "Google Books", "Webtoons", "Otro"
+  ]).nullable(),
   currentPage: z.number().int().min(1).max(1000000).nullable()
 }).strict().superRefine((item, context) => {
   if (item.startedAt && item.finishedAt && item.finishedAt < item.startedAt) {
@@ -121,8 +123,10 @@ export const spotifySearchSchema = z.object({
 export const dashboardFilterSchema = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
-  format: z.enum(["Físico", "Digital"]).optional(),
-  provider: z.enum(["Kindle", "Apple Books", "Google Books", "Otro"]).optional(),
+  format: z.enum(["Físico", "Digital", "Ambos"]).optional(),
+  provider: z.enum([
+    "Kindle", "Apple Books", "Google Books", "Webtoons", "Otro"
+  ]).optional(),
   status: z.enum(["Leyendo", "Próximo a leer", "Leído"]).optional()
 }).strict().superRefine((item, context) => {
   if (item.from && item.to && item.to < item.from) {

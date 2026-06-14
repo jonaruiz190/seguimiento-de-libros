@@ -83,20 +83,28 @@ export function normalizeOpenLibraryBook(document) {
 }
 
 async function fetchJson(url, options = {}) {
-  const response = await fetch(url, {
-    ...options,
-    signal: AbortSignal.timeout(15_000),
-    headers: {
-      "User-Agent": "SeguimientoDeLibros/1.0",
-      ...options.headers
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(10_000),
+        headers: {
+          "User-Agent": "SeguimientoDeLibros/1.0",
+          ...options.headers
+        }
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 250));
     }
-  });
-  if (!response.ok) {
-    const error = new Error("El catálogo externo no está disponible temporalmente.");
-    error.status = 502;
-    throw error;
   }
-  return response.json();
+  const error = new Error("El catálogo externo no está disponible temporalmente.");
+  error.status = 502;
+  error.cause = lastError;
+  throw error;
 }
 
 export async function searchOpenLibrary(query, limit = 12, options = {}) {
@@ -201,7 +209,7 @@ export async function translateBook(book, language, config) {
       async () => {
         const response = await fetch(config.translationApiUrl, {
           method: "POST",
-          signal: AbortSignal.timeout(15_000),
+          signal: AbortSignal.timeout(8_000),
           headers: {
             "Content-Type": "application/json",
             ...(config.translationApiKey

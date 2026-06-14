@@ -78,7 +78,9 @@ export function createDashboardRouter({ pool }) {
                 ), 0)::int AS days
          FROM tracking t
          WHERE ${where} AND t.status = 'Leído'
-           AND t.finished_at >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '11 months'
+           AND t.finished_at >= DATE_TRUNC(
+             'month', COALESCE($3::date, CURRENT_DATE)
+           ) - INTERVAL '11 months'
          GROUP BY DATE_TRUNC('month', t.finished_at)
          ORDER BY DATE_TRUNC('month', t.finished_at)`,
         values
@@ -99,7 +101,7 @@ export function createDashboardRouter({ pool }) {
         `SELECT COALESCE(t.reading_provider, 'Sin especificar') AS label,
                 COUNT(*)::int AS value
          FROM tracking t
-         WHERE ${where} AND t.format = 'Digital'
+         WHERE ${where} AND t.format IN ('Digital', 'Ambos')
            AND (t.archived_at IS NULL OR t.status = 'Leído')
          GROUP BY COALESCE(t.reading_provider, 'Sin especificar')
          ORDER BY value DESC, label LIMIT 8`,
@@ -146,7 +148,7 @@ export function createDashboardRouter({ pool }) {
       providers: providerResult.rows,
       formats: formatResult.rows,
       formatHeatmap: formatHeatmapResult.rows,
-      monthly: fillMonthlySeries(monthlyResult.rows),
+      monthly: fillMonthlySeries(monthlyResult.rows, filters),
       books: booksResult.rows.map((book) => ({
         ...book,
         pages: numberOrZero(book.pages),
@@ -159,18 +161,32 @@ export function createDashboardRouter({ pool }) {
   return router;
 }
 
-function fillMonthlySeries(rows) {
+function fillMonthlySeries(rows, filters = {}) {
   const values = new Map(rows.map((row) => [row.month, row]));
   const formatter = new Intl.DateTimeFormat("es", { month: "short" });
-  const now = new Date();
+  const end = filters.to
+    ? new Date(`${filters.to.slice(0, 7)}-01T00:00:00Z`)
+    : new Date();
+  const requestedStart = filters.from
+    ? new Date(`${filters.from.slice(0, 7)}-01T00:00:00Z`)
+    : null;
+  const defaultStart = new Date(Date.UTC(
+    end.getUTCFullYear(), end.getUTCMonth() - 11, 1
+  ));
+  const start = requestedStart && requestedStart > defaultStart
+    ? requestedStart
+    : defaultStart;
   const series = [];
-  for (let offset = 11; offset >= 0; offset -= 1) {
-    const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - offset, 1));
+  for (
+    let date = new Date(start);
+    date <= end && series.length < 12;
+    date = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1))
+  ) {
     const key = date.toISOString().slice(0, 7);
     const value = values.get(key);
     series.push({
       month: key,
-      label: formatter.format(date).replace(".", ""),
+      label: `${formatter.format(date).replace(".", "")} ${String(date.getUTCFullYear()).slice(2)}`,
       books: numberOrZero(value?.books),
       days: numberOrZero(value?.days)
     });

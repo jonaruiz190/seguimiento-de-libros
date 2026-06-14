@@ -13,6 +13,7 @@ const state = {
   trackingSearch: "",
   statusFilter: "all"
 };
+let pendingRequests = 0;
 
 const spotifyEmbedUrl = "https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator";
 const loginQuotes = [
@@ -134,7 +135,8 @@ function bindEvents() {
     state.statusFilter = event.target.value;
     renderTracking();
   });
-  $("#add-book-button").addEventListener("click", () => openTrackingModal());
+  $("#add-book-button").addEventListener("click", exploreBooks);
+  $("#refresh-tracking").addEventListener("click", () => refreshTracking());
   $("#catalog-button").addEventListener("click", openCatalogModal);
   $("#catalog-search-form").addEventListener("submit", searchCatalog);
   $("#spotify-button").addEventListener("click", toggleSpotifyPanel);
@@ -145,6 +147,8 @@ function bindEvents() {
   $("#spotify-search-form").addEventListener("submit", searchSpotify);
   $("#tracking-form").addEventListener("submit", saveTracking);
   $("#tracking-status").addEventListener("change", applyDateDefaults);
+  $("#tracking-format").addEventListener("change", applyTrackingFieldRules);
+  $("#tracking-book").addEventListener("change", applyTrackingFieldRules);
   $("#refresh-dashboard").addEventListener("click", () => loadDashboard(true));
   $("#dashboard-filters").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -222,26 +226,60 @@ function renderRandomQuote() {
 }
 
 async function api(url, options = {}) {
-  const { allowUnauthorized = false, ...fetchOptions } = options;
-  const response = await fetch(url, {
-    credentials: "same-origin",
-    headers: {
-      ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
-      ...fetchOptions.headers
-    },
-    ...fetchOptions
-  });
-
-  if (allowUnauthorized && response.status === 401) return null;
-  if (response.status === 204) return null;
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || "La solicitud no pudo completarse.");
-    error.status = response.status;
-    throw error;
+  const { allowUnauthorized = false, loadingText = "Cargando...", ...fetchOptions } = options;
+  showGlobalLoader(loadingText);
+  const attempts = (!fetchOptions.method || fetchOptions.method === "GET") ? 2 : 1;
+  try {
+    let response;
+    let networkError;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      try {
+        response = await fetch(url, {
+          credentials: "same-origin",
+          headers: {
+            ...(fetchOptions.body ? { "Content-Type": "application/json" } : {}),
+            ...fetchOptions.headers
+          },
+          ...fetchOptions
+        });
+        break;
+      } catch (error) {
+        networkError = error;
+        if (attempt + 1 < attempts) await delay(350);
+      }
+    }
+    if (!response) {
+      throw new Error(networkError?.message === "Failed to fetch"
+        ? "La conexión se interrumpió. Intenta nuevamente."
+        : "No se pudo conectar con el servidor.");
+    }
+    if (allowUnauthorized && response.status === 401) return null;
+    if (response.status === 204) return null;
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || "La solicitud no pudo completarse.");
+      error.status = response.status;
+      throw error;
+    }
+    return payload;
+  } finally {
+    hideGlobalLoader();
   }
-  return payload;
+}
+
+function showGlobalLoader(text = "Cargando...") {
+  pendingRequests += 1;
+  $("#global-loader-text").textContent = text;
+  $("#global-loader").classList.remove("is-hidden");
+}
+
+function hideGlobalLoader() {
+  pendingRequests = Math.max(0, pendingRequests - 1);
+  if (!pendingRequests) $("#global-loader").classList.add("is-hidden");
+}
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 async function handleRegister(event) {
@@ -337,6 +375,7 @@ async function enterApp(user) {
   renderUserIdentity();
   $("#welcome-message").textContent = `${greeting()}, ${user.name.split(" ")[0]}`;
   populateBookSelect();
+  updateBookSuggestions();
   renderCategoryFilters();
   renderBooks();
   renderTracking();
@@ -560,6 +599,9 @@ function greeting() {
 }
 
 async function showView(viewName) {
+  if (viewName === "tracking" && state.user) {
+    await refreshTracking({ silent: true });
+  }
   $$(".view").forEach((view) => view.classList.add("is-hidden"));
   $(`#${viewName}-view`).classList.remove("is-hidden");
   $$("[data-view]").forEach((button) => {
@@ -639,11 +681,14 @@ async function loadRecommendations(category = "") {
       language: state.user?.language || "es"
     });
     if (category) params.set("category", category);
-    const result = await api(`/api/catalog/recommendations?${params}`);
+    const result = await api(`/api/catalog/recommendations?${params}`, {
+      loadingText: "Cargando recomendaciones..."
+    });
     state.recommendations = result.books;
     if (!category) state.category = "Todos";
     renderCategoryFilters();
     renderBooks();
+    updateBookSuggestions();
   } catch (error) {
     console.error(error);
     showToast("Usando recomendaciones locales temporalmente.");
@@ -720,6 +765,9 @@ async function openCatalogBookPreview(sourceId, source = "openlibrary") {
 }
 
 function renderExternalBookDetail(book) {
+  const trackedItem = book.localId
+    ? state.tracking.find((item) => String(item.bookId) === String(book.localId))
+    : null;
   $("#book-detail").innerHTML = `
     <div class="book-detail">
       <div class="book-detail__visual">
@@ -743,15 +791,24 @@ function renderExternalBookDetail(book) {
           <a class="button button--secondary" href="${safeExternalUrl(link.url)}"
             target="_blank" rel="noopener noreferrer">Abrir en ${escapeHtml(link.label)}</a>
         `).join("")}</div>
-        <button id="preview-import-button" class="button button--primary" type="button"
-          ${book.imported ? "disabled" : ""}>
-          ${book.imported ? "Ya está en tu biblioteca" : "Agregar a mi biblioteca"}
+        <button id="preview-import-button" class="button button--primary" type="button">
+          ${trackedItem ? "Editar seguimiento" : "Agregar a seguimiento"}
         </button>
       </div>
     </div>
   `;
   attachImageFallbacks($("#book-detail"));
   $("#preview-import-button").addEventListener("click", async (event) => {
+    if (trackedItem) {
+      closeBookModal();
+      openTrackingModal(trackedItem.id);
+      return;
+    }
+    if (book.localId) {
+      await addImportedBookToTracking(book.localId);
+      closeBookModal();
+      return;
+    }
     event.currentTarget.dataset.importBook = book.sourceId;
     event.currentTarget.dataset.importSource = book.source;
     await importCatalogBook(event.currentTarget);
@@ -795,7 +852,8 @@ function openTrackingModal(trackingId = null, preferredBookId = null) {
   $("#tracking-provider").value = item?.readingProvider || "";
   $("#tracking-current-page").value = item?.currentPage || "";
   $("#tracking-modal-title").textContent = item ? "Editar seguimiento" : "Añadir a mi seguimiento";
-  if (!item) applyDateDefaults();
+  applyDateDefaults();
+  applyTrackingFieldRules();
   $("#tracking-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
 }
@@ -845,6 +903,7 @@ async function saveTracking(event) {
   try {
     const result = await api(existingId ? `/api/tracking/${existingId}` : "/api/tracking", {
       method: existingId ? "PUT" : "POST",
+      loadingText: "Guardando seguimiento...",
       body: JSON.stringify(item)
     });
     const index = state.tracking.findIndex((entry) => entry.id === result.tracking.id);
@@ -1042,8 +1101,11 @@ async function runCatalogSearch(query) {
       q: query,
       language: state.user?.language || "es"
     });
-    const result = await api(`/api/catalog/search?${params}`);
+    const result = await api(`/api/catalog/search?${params}`, {
+      loadingText: "Buscando libros..."
+    });
     renderCatalogResults(result.books);
+    updateBookSuggestions(result.books);
     message.textContent = result.books.length
       ? `${result.books.length} resultados encontrados.`
       : "No se encontraron libros con esa búsqueda.";
@@ -1097,15 +1159,17 @@ async function importCatalogBook(button) {
     });
     const booksResult = await api("/api/books");
     state.books = booksResult.books;
+    await addImportedBookToTracking(result.id);
     const recommendation = state.recommendations.find(
       (book) => book.sourceId === sourceId
     );
     if (recommendation) recommendation.imported = true;
     populateBookSelect();
+    updateBookSuggestions();
     renderCategoryFilters();
     renderBooks();
     button.textContent = "Agregado";
-    showToast("Libro agregado con datos del catálogo real.");
+    showToast("Libro agregado a tu seguimiento.");
     const imported = findBook(result.id);
     if (imported) {
       closeCatalogModal();
@@ -1118,6 +1182,49 @@ async function importCatalogBook(button) {
     button.textContent = "Agregar";
     showToast(error.message);
   }
+}
+
+async function addImportedBookToTracking(bookId) {
+  await refreshTracking({ silent: true });
+  if (state.tracking.some((item) => item.bookId === bookId)) return;
+  const result = await api("/api/tracking", {
+    method: "POST",
+    loadingText: "Añadiendo a tu seguimiento...",
+    body: JSON.stringify({
+      bookId,
+      status: "Próximo a leer",
+      rating: 0,
+      comment: "",
+      format: "Físico",
+      startedAt: null,
+      finishedAt: null,
+      readingProvider: null,
+      currentPage: null
+    })
+  });
+  state.tracking.unshift(result.tracking);
+  renderTracking();
+  updateStats();
+}
+
+async function refreshTracking({ silent = false } = {}) {
+  try {
+    const result = await api("/api/tracking", {
+      loadingText: "Actualizando seguimiento..."
+    });
+    state.tracking = result.tracking;
+    state.dashboard = null;
+    renderTracking();
+    updateStats();
+    if (!silent) showToast("Seguimiento actualizado.");
+  } catch (error) {
+    if (!silent) showToast(error.message);
+  }
+}
+
+function exploreBooks() {
+  showView("home");
+  $("#hero-catalog-search").focus();
 }
 
 function renderTracking() {
@@ -1143,7 +1250,7 @@ function renderTracking() {
         <td><span class="status-pill ${statusClass(item.status)}">${escapeHtml(item.status)}</span></td>
         <td><span class="stars">${item.rating ? ratingStars(item.rating) : "Sin puntuar"}</span></td>
         <td class="comment-cell">${escapeHtml(item.comment || "Sin comentarios")}</td>
-        <td>${escapeHtml(item.format)}</td>
+        <td>${formatTrackingSource(item)}</td>
         <td class="row-actions">
           <button class="icon-button" type="button" data-view-book="${escapeHtml(book.id)}">Ver</button>
           <button class="icon-button" type="button" data-edit="${escapeHtml(item.id)}">Editar</button>
@@ -1165,6 +1272,15 @@ function renderTracking() {
   $$("[data-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteTracking(button.dataset.delete));
   });
+}
+
+function formatTrackingSource(item) {
+  if (item.format === "Ambos") {
+    return `Físico + ${escapeHtml(item.readingProvider || "Digital")}`;
+  }
+  return `${escapeHtml(item.format)}${item.readingProvider
+    ? ` · ${escapeHtml(item.readingProvider)}`
+    : ""}`;
 }
 
 async function deleteTracking(id) {
@@ -1206,6 +1322,26 @@ function applyDateDefaults() {
     finishedAt.value = today;
   }
   if (status !== "Leído") finishedAt.value = "";
+  applyTrackingFieldRules();
+}
+
+function applyTrackingFieldRules() {
+  const status = $("#tracking-status").value;
+  const format = $("#tracking-format").value;
+  const provider = $("#tracking-provider");
+  const currentPage = $("#tracking-current-page");
+  const book = findBook($("#tracking-book").value);
+  const pages = Math.max(1, Number(book?.pages) || 1);
+
+  provider.disabled = format === "Físico";
+  if (provider.disabled) provider.value = "";
+
+  currentPage.max = String(pages);
+  currentPage.disabled = status === "Leído";
+  if (status === "Leído") currentPage.value = String(pages);
+  if (!currentPage.disabled && Number(currentPage.value) > pages) {
+    currentPage.value = String(pages);
+  }
 }
 
 async function loadDashboard(force = false) {
@@ -1260,7 +1396,7 @@ function renderDashboard() {
   renderMonthlyChart(dashboard.monthly);
   renderRankingChart("#genre-chart", dashboard.genres);
   renderRankingChart("#author-chart", dashboard.authors);
-  renderFormatHeatmap(dashboard.formatHeatmap);
+  renderFormatHeatmap(dashboard.formatHeatmap, dashboard.monthly);
   renderRankingChart("#provider-chart", dashboard.providers);
   renderDashboardBooks(dashboard.books);
 
@@ -1274,14 +1410,21 @@ function clearDashboardFilters() {
   loadDashboard(true);
 }
 
-function renderFormatHeatmap(rows) {
+function renderFormatHeatmap(rows, monthly = []) {
   const container = $("#format-chart");
   if (!rows?.length) {
     container.innerHTML = '<p class="dashboard-empty">No hay datos para estos filtros.</p>';
     return;
   }
-  const months = [...new Set(rows.map((row) => row.month))].sort();
-  const formats = ["Físico", "Digital"];
+  const months = monthly.length
+    ? monthly.map((row) => row.month)
+    : [...new Set(rows.map((row) => row.month))].sort();
+  const formats = ["Físico", "Digital", "Ambos"];
+  const colors = {
+    "Físico": "#b98a4a",
+    "Digital": "#2f6f58",
+    "Ambos": "#7559a6"
+  };
   const values = new Map(rows.map((row) => [`${row.month}:${row.label}`, Number(row.value)]));
   const max = Math.max(1, ...values.values());
   container.innerHTML = `
@@ -1293,16 +1436,33 @@ function renderFormatHeatmap(rows) {
         const value = values.get(`${month}:${format}`) || 0;
         const intensity = value / max;
         return `<span class="heatmap-cell" title="${escapeHtml(`${month}: ${value} ${format}`)}"
-          style="--heat: ${intensity}">${value || ""}</span>`;
+          style="--heat: ${intensity}; --heat-color: ${colors[format]}">${value || ""}</span>`;
       }).join("")}
     `).join("")}
   `;
   container.style.setProperty("--heatmap-columns", String(months.length));
 }
 
+function updateBookSuggestions(extraBooks = []) {
+  const suggestions = [...state.books, ...state.recommendations, ...extraBooks];
+  const seen = new Set();
+  $("#book-suggestions").innerHTML = suggestions
+    .filter((book) => {
+      const key = `${book.title}:${book.author}`.toLowerCase();
+      if (!book.title || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 120)
+    .map((book) => `<option value="${escapeHtml(book.title)}">${escapeHtml(book.author)}</option>`)
+    .join("");
+}
+
 function renderMonthlyChart(monthly) {
   const max = Math.max(1, ...monthly.map((item) => item.books));
-  $("#monthly-chart").innerHTML = monthly.map((item) => {
+  const chart = $("#monthly-chart");
+  chart.style.setProperty("--month-columns", String(Math.max(monthly.length, 1)));
+  chart.innerHTML = monthly.map((item) => {
     const height = item.books === 0 ? 2 : Math.max(12, (item.books / max) * 92);
     return `
       <div class="month-column" title="${item.books} libros · ${item.days} días">

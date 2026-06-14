@@ -987,9 +987,10 @@ tr:last-child td {
   min-height: 245px;
   padding-top: 20px;
   align-items: end;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: repeat(var(--month-columns, 12), minmax(42px, 1fr));
   gap: clamp(5px, 1.3vw, 16px);
   border-bottom: 1px solid var(--line);
+  overflow-x: auto;
 }
 
 .month-column {
@@ -1697,10 +1698,12 @@ tr:last-child td {
 
 .format-heatmap {
   display: grid;
-  grid-template-columns: 70px repeat(var(--heatmap-columns, 1), minmax(30px, 1fr));
-  gap: 5px;
+  grid-template-columns: minmax(105px, 140px) repeat(var(--heatmap-columns, 1), minmax(44px, 1fr));
+  gap: 7px;
   align-items: center;
   overflow-x: auto;
+  width: 100%;
+  padding-bottom: 6px;
 }
 
 .heatmap-month {
@@ -1715,13 +1718,44 @@ tr:last-child td {
 
 .heatmap-cell {
   display: grid;
-  min-width: 30px;
+  min-width: 44px;
   aspect-ratio: 1;
   place-items: center;
   color: var(--ink);
-  background: color-mix(in srgb, var(--green) calc(var(--heat) * 85%), var(--sage));
+  background: color-mix(in srgb, var(--heat-color, var(--green)) calc(var(--heat) * 85%), var(--sage));
   border-radius: 5px;
   font-size: 0.72rem;
+}
+
+.global-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  background: color-mix(in srgb, var(--paper) 74%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.global-loader.is-hidden {
+  display: none;
+}
+
+.loading-spinner {
+  width: 46px;
+  height: 46px;
+  border: 4px solid color-mix(in srgb, var(--green) 22%, transparent);
+  border-top-color: var(--green);
+  border-radius: 50%;
+  animation: loader-spin 0.75s linear infinite;
+}
+
+@keyframes loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 720px) {
@@ -1854,7 +1888,7 @@ tr:last-child td {
 
   .monthly-chart {
     overflow-x: auto;
-    grid-template-columns: repeat(12, minmax(34px, 1fr));
+    grid-template-columns: repeat(var(--month-columns, 12), minmax(42px, 1fr));
   }
 
   .ranking-filters {
