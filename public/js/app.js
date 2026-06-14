@@ -116,6 +116,8 @@ async function resetPassword(event) {
 
 function bindEvents() {
   $("#login-form").addEventListener("submit", handleLogin);
+  $("#auth-notice-close").addEventListener("click", closeAuthNotice);
+  $("#auth-notice .auth-notice__backdrop").addEventListener("click", closeAuthNotice);
   $("#register-form").addEventListener("submit", handleRegister);
   $("#open-register-button").addEventListener("click", openRegisterModal);
   $("#logout-button").addEventListener("click", logout);
@@ -348,8 +350,21 @@ async function handleLogin(event) {
       })
     });
     await enterApp(result.user);
+    showAuthNotice({
+      type: "success",
+      title: "Inicio de sesión exitoso",
+      message: `Bienvenido, ${result.user.name}. Tu biblioteca está lista.`,
+      autoClose: true
+    });
   } catch (error) {
     errorElement.textContent = error.message;
+    showAuthNotice({
+      type: "error",
+      title: error.status === 401 ? "Contraseña incorrecta" : "No se pudo iniciar sesión",
+      message: error.status === 401
+        ? "El correo o la contraseña no coinciden. Revisa los datos e intenta nuevamente."
+        : error.message
+    });
   } finally {
     submitButton.disabled = false;
   }
@@ -1754,4 +1769,23 @@ function showToast(message) {
   toast.classList.add("is-visible");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2400);
+}
+
+let authNoticeTimer;
+function showAuthNotice({ type, title, message, autoClose = false }) {
+  const notice = $("#auth-notice");
+  clearTimeout(authNoticeTimer);
+  notice.classList.remove("is-hidden", "auth-notice--success", "auth-notice--error");
+  notice.classList.add(`auth-notice--${type}`);
+  $("#auth-notice-title").textContent = title;
+  $("#auth-notice-message").textContent = message;
+  $("#auth-notice-icon").textContent = type === "success" ? "✓" : "!";
+  $("#auth-notice-close").textContent = type === "success" ? "Continuar" : "Entendido";
+  if (!autoClose) $("#auth-notice-close").focus();
+  if (autoClose) authNoticeTimer = setTimeout(closeAuthNotice, 2200);
+}
+
+function closeAuthNotice() {
+  clearTimeout(authNoticeTimer);
+  $("#auth-notice").classList.add("is-hidden");
 }

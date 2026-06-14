@@ -620,6 +620,19 @@
     </form>
   </div>
 
+  <div id="auth-notice" class="auth-notice is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="auth-notice-title" aria-describedby="auth-notice-message">
+    <div class="auth-notice__backdrop"></div>
+    <section class="auth-notice__card">
+      <span id="auth-notice-icon" class="auth-notice__icon" aria-hidden="true">!</span>
+      <h2 id="auth-notice-title">No se pudo iniciar sesión</h2>
+      <p id="auth-notice-message"></p>
+      <button id="auth-notice-close" class="button button--primary button--full" type="button">
+        Entendido
+      </button>
+    </section>
+  </div>
+
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <datalist id="book-suggestions"></datalist>
   <div id="global-loader" class="global-loader is-hidden" role="status" aria-live="polite">
