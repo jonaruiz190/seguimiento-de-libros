@@ -115,7 +115,7 @@ export function createTrackingRouter({ pool }) {
   return router;
 }
 
-async function normalizeTrackingItem(pool, item) {
+export async function normalizeTrackingItem(pool, item) {
   const result = await pool.query(
     `SELECT pages, progress_total_known AS "progressTotalKnown"
      FROM books WHERE id = $1`,
