@@ -237,8 +237,8 @@ export async function translateBook(book, language, config) {
 export async function translateBookTitles(books, language, config) {
   if (!books.length || !language || !config?.translationApiUrl) return books;
   const chunks = [];
-  for (let index = 0; index < books.length; index += 20) {
-    chunks.push(books.slice(index, index + 20));
+  for (let index = 0; index < books.length; index += 2) {
+    chunks.push(books.slice(index, index + 2));
   }
   const localizedChunks = await Promise.all(chunks.map(async (chunk) => {
     const key = chunk.map((book) => `${book.source}:${book.sourceId}`).join(",");
@@ -249,7 +249,7 @@ export async function translateBookTitles(books, language, config) {
         async () => {
           const response = await fetch(config.translationApiUrl, {
             method: "POST",
-            signal: AbortSignal.timeout(30_000),
+            signal: AbortSignal.timeout(60_000),
             headers: {
               "Content-Type": "application/json",
               ...(config.translationApiKey

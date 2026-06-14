@@ -78,11 +78,13 @@ export function createCatalogRouter({ pool, config }) {
       error.status = 502;
       throw error;
     }
-    const localized = await localizeBooks(
-      recommendations,
-      input.language || request.user.language || "es",
-      config
-    );
+    const localized = input.category
+      ? await localizeBooks(
+        recommendations,
+        input.language || request.user.language || "es",
+        config
+      )
+      : recommendations;
     const imported = await importedSourceKeys(pool, localized);
     response.set("Cache-Control", "private, max-age=300");
     response.json({
@@ -107,7 +109,8 @@ export function createCatalogRouter({ pool, config }) {
     const books = dedupeBooks(settled.flatMap((result) =>
       result.status === "fulfilled" ? result.value : []
     ));
-    const localized = await localizeBooks(books, input.language || "es", config);
+    const firstPage = await localizeBooks(books.slice(0, 24), input.language || "es", config);
+    const localized = [...firstPage, ...books.slice(24)];
     response.set("Cache-Control", "private, max-age=300");
     response.json({ books: localized });
   }));
