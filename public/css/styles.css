@@ -373,7 +373,7 @@ textarea:focus {
   height: 22px;
   place-items: center;
   color: white;
-  background: #1db954;
+  background: var(--green);
   border-radius: 50%;
   font-size: 0.58rem;
 }
@@ -415,6 +415,13 @@ textarea:focus {
   gap: 14px;
 }
 
+.spotify-mobile-hint {
+  margin: 9px 0 18px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
 .spotify-panel__connection p {
   margin: 0;
   color: var(--muted);
@@ -430,6 +437,7 @@ textarea:focus {
 .user-button {
   display: flex;
   padding: 0;
+  min-height: 44px;
   align-items: center;
   gap: 9px;
   background: none;
@@ -738,6 +746,7 @@ main {
   display: flex;
   padding: 0 clamp(24px, 8vw, 130px) 20px;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -829,6 +838,16 @@ tr:last-child td {
 .status-pill--read {
   color: #4b5163;
   background: #e5e7ed;
+}
+
+.status-pill--paused {
+  color: #6c4b18;
+  background: #f7dfb3;
+}
+
+.status-pill--dropped {
+  color: #7b3030;
+  background: #f3d2d2;
 }
 
 .comment-cell {
@@ -1179,8 +1198,8 @@ tr:last-child td {
   top: 15px;
   right: 17px;
   display: grid;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   background: rgba(255, 255, 255, 0.9);
   border: 0;
@@ -1480,9 +1499,30 @@ tr:last-child td {
 }
 
 .auth-notice__card p {
-  margin-bottom: 24px;
+  margin-bottom: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.help-content details {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.help-content summary {
+  color: var(--green);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.help-content details p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.help-content > .button {
+  margin: 18px 0 10px;
 }
 
 .mobile-nav {
@@ -1588,6 +1628,11 @@ tr:last-child td {
   width: 100%;
 }
 
+.spotify-source .button {
+  width: 100%;
+  text-align: center;
+}
+
 .ranking-view {
   max-width: 1240px;
   min-height: calc(100vh - 80px);
@@ -1597,9 +1642,25 @@ tr:last-child td {
 
 .ranking-filters {
   display: grid;
-  grid-template-columns: 190px 1.2fr 1fr 180px 130px auto;
+  grid-template-columns: 190px 1.2fr 1fr 180px 150px auto;
   gap: 12px;
+  align-items: end;
   margin: 28px 0 12px;
+}
+
+.filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.filter-field > span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+#spotify-open-external {
+  text-decoration: none;
 }
 
 .ranking-book-grid {
@@ -1691,46 +1752,6 @@ tr:last-child td {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.spotify-search {
-  display: grid;
-  grid-template-columns: 1fr 115px auto;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.spotify-search-results {
-  display: grid;
-  gap: 7px;
-  max-height: 280px;
-  margin-top: 12px;
-  overflow-y: auto;
-}
-
-.spotify-result {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 7px;
-  text-align: left;
-  background: var(--white);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  cursor: pointer;
-}
-
-.spotify-result img {
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: 5px;
-}
-
-.spotify-result span,
-.spotify-result small {
-  display: block;
 }
 
 .dashboard-filters {
@@ -2028,10 +2049,6 @@ tr:last-child td {
 
   .dashboard-filters {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .spotify-search {
-    grid-template-columns: 1fr;
   }
 
   .ranking-filters .button {

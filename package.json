@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "node --watch server/server.js",
     "start": "node server/server.js",
+    "start:production": "npm run db:migrate && npm start",
     "db:migrate": "node server/scripts/migrate.js",
     "db:seed": "node server/scripts/seed.js",
     "catalog:refresh": "node server/scripts/refresh-catalog.js",

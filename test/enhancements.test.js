@@ -7,7 +7,7 @@ import {
   profileSchema,
   rankingSchema,
   resetPasswordSchema,
-  spotifySearchSchema,
+  supportReportSchema,
   validate
 } from "../server/validation.js";
 
@@ -26,6 +26,17 @@ test("acepta preferencias ampliadas y avatar local en el perfil", () => {
   assert.equal(profile.favoriteAuthors[0], "Ursula K. Le Guin");
 });
 
+test("valida reportes de soporte", () => {
+  const report = validate(supportReportSchema, {
+    category: "Sugerencia",
+    title: "Añadir estadísticas semanales",
+    description: "Me gustaría comparar el progreso de lectura de cada semana.",
+    steps: "",
+    page: "/"
+  });
+  assert.equal(report.category, "Sugerencia");
+});
+
 test("normaliza filtros del Top 100", () => {
   const ranking = validate(rankingSchema, {
     category: "Manga",
@@ -37,18 +48,13 @@ test("normaliza filtros del Top 100", () => {
   assert.equal(ranking.year, 2024);
 });
 
-test("valida catálogo mixto y búsquedas de Spotify", () => {
+test("valida catálogo mixto", () => {
   const catalog = validate(catalogSearchSchema, {
     q: "Solo Leveling",
     source: "anilist",
     language: "es"
   });
-  const spotify = validate(spotifySearchSchema, {
-    q: "música para leer",
-    type: "playlist"
-  });
   assert.equal(catalog.source, "anilist");
-  assert.equal(spotify.type, "playlist");
 });
 
 test("valida recuperación de contraseña y filtros del dashboard", () => {

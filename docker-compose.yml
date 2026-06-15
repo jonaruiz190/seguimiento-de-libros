@@ -51,6 +51,8 @@ services:
       TRANSLATION_API_URL: ${TRANSLATION_API_URL:-http://translation:5000/translate}
       TRANSLATION_API_KEY: ${TRANSLATION_API_KEY:-}
       NYT_BOOKS_API_KEY: ${NYT_BOOKS_API_KEY:-}
+      GITHUB_SUPPORT_TOKEN: ${GITHUB_SUPPORT_TOKEN:-}
+      GITHUB_SUPPORT_REPO: ${GITHUB_SUPPORT_REPO:-jonaruiz190/seguimiento-de-libros}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
     ports:

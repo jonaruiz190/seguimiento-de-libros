@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: seguimiento-de-libros
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY
+        value: "1"
+      - key: SESSION_DAYS
+        value: "7"
+      - key: ALLOW_REGISTRATION
+        value: "false"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: DATABASE_SSL_REJECT_UNAUTHORIZED
+        value: "true"
+      - key: APP_ORIGIN
+        sync: false
+      - key: APP_ALLOWED_ORIGINS
+        sync: false
+      - key: SPOTIFY_CLIENT_ID
+        sync: false
+      - key: SPOTIFY_CLIENT_SECRET
+        sync: false
+      - key: SPOTIFY_REDIRECT_URI
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        generateValue: true
+      - key: TRANSLATION_API_URL
+        sync: false
+      - key: TRANSLATION_API_KEY
+        sync: false
+      - key: NYT_BOOKS_API_KEY
+        sync: false
+      - key: GITHUB_SUPPORT_TOKEN
+        sync: false
+      - key: GITHUB_SUPPORT_REPO
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

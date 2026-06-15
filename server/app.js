@@ -8,6 +8,7 @@ import { createTrackingRouter } from "./routes/tracking.js";
 import { createDashboardRouter } from "./routes/dashboard.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createIntegrationsRouter } from "./routes/integrations.js";
+import { createSupportRouter } from "./routes/support.js";
 import {
   errorHandler,
   notFound,
@@ -55,12 +56,20 @@ export function createApp({ pool, config }) {
       next(error);
     }
   });
+  app.get("/api/runtime", (request, response) => {
+    response.set("Cache-Control", "no-store");
+    response.json({
+      demoMode: !config.isProduction,
+      registrationEnabled: config.allowRegistration !== false
+    });
+  });
   app.use("/api/auth", createAuthRouter({ pool, config }));
   app.use("/api/books", createBooksRouter({ pool, config }));
   app.use("/api/tracking", createTrackingRouter({ pool, config }));
   app.use("/api/dashboard", createDashboardRouter({ pool, config }));
   app.use("/api/catalog", createCatalogRouter({ pool, config }));
   app.use("/api/integrations", createIntegrationsRouter({ pool, config }));
+  app.use("/api/support", createSupportRouter({ pool, config }));
 
   app.use(express.static(publicDirectory, {
     extensions: ["html"],

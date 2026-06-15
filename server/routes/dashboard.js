@@ -23,6 +23,7 @@ export function createDashboardRouter({ pool }) {
       AND ($4::text IS NULL OR t.format = $4)
       AND ($5::text IS NULL OR t.reading_provider = $5)
       AND ($6::text IS NULL OR t.status = $6)
+      AND (t.archived_at IS NULL OR t.status = 'Leído')
     `;
     const [
       summaryResult,
@@ -36,26 +37,51 @@ export function createDashboardRouter({ pool }) {
     ] = await Promise.all([
       pool.query(
         `SELECT
+           COUNT(*)::int AS total_books,
            COUNT(*) FILTER (WHERE t.status = 'Leído')::int AS read_books,
-           COUNT(*) FILTER (
-             WHERE t.status = 'Leyendo' AND t.archived_at IS NULL
-           )::int AS reading_books,
-           COALESCE(SUM((t.finished_at - t.started_at) + 1) FILTER (
-             WHERE t.status = 'Leído'
-               AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+           COUNT(*) FILTER (WHERE t.status = 'Leyendo')::int AS reading_books,
+           COUNT(*) FILTER (WHERE t.status = 'Próximo a leer')::int AS next_books,
+           COUNT(*) FILTER (WHERE t.status = 'En pausa')::int AS paused_books,
+           COUNT(*) FILTER (WHERE t.status = 'Abandonado')::int AS dropped_books,
+           COALESCE(SUM(
+             CASE
+               WHEN t.status = 'Leído'
+                 AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                 THEN (t.finished_at - t.started_at) + 1
+               WHEN t.status = 'Leyendo' AND t.started_at IS NOT NULL
+                 THEN (CURRENT_DATE - t.started_at) + 1
+               ELSE 0
+             END
            ), 0)::int AS total_days,
            COALESCE(SUM(
              CASE WHEN b.progress_total_known
                THEN b.pages
                ELSE COALESCE(t.current_page, 0)
              END
-           ) FILTER (WHERE t.status = 'Leído'), 0)::int AS pages_read,
+           ) FILTER (
+             WHERE b.progress_unit = 'page' AND t.status = 'Leído'
+           ), 0)::int
+           + COALESCE(SUM(COALESCE(t.current_page, 0)) FILTER (
+             WHERE b.progress_unit = 'page' AND t.status <> 'Leído'
+           ), 0)::int AS pages_read,
+           COALESCE(SUM(
+             CASE WHEN b.progress_total_known AND t.status = 'Leído'
+               THEN b.pages
+               ELSE COALESCE(t.current_page, 0)
+             END
+           ) FILTER (WHERE b.progress_unit = 'chapter'), 0)::int AS chapters_read,
            ROUND(AVG(t.rating) FILTER (
-             WHERE t.status = 'Leído' AND t.rating > 0
+             WHERE t.rating > 0
            ), 1) AS average_rating,
-           ROUND(AVG((t.finished_at - t.started_at) + 1) FILTER (
-             WHERE t.status = 'Leído'
-               AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+           ROUND(AVG(
+             CASE
+               WHEN t.status = 'Leído'
+                 AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                 THEN (t.finished_at - t.started_at) + 1
+               WHEN t.status = 'Leyendo' AND t.started_at IS NOT NULL
+                 THEN (CURRENT_DATE - t.started_at) + 1
+               ELSE NULL
+             END
            ), 1) AS average_days
          FROM tracking t JOIN books b ON b.id = t.book_id
          WHERE ${where}`,
@@ -64,42 +90,62 @@ export function createDashboardRouter({ pool }) {
       pool.query(
         `SELECT bc.category AS label, COUNT(DISTINCT t.id)::int AS value
          FROM tracking t JOIN book_categories bc ON bc.book_id = t.book_id
-         WHERE ${where} AND t.status = 'Leído'
+         WHERE ${where}
          GROUP BY bc.category ORDER BY value DESC, label LIMIT 8`,
         values
       ),
       pool.query(
         `SELECT b.author AS label, COUNT(*)::int AS value
          FROM tracking t JOIN books b ON b.id = t.book_id
-         WHERE ${where} AND t.status = 'Leído'
+         WHERE ${where}
          GROUP BY b.author ORDER BY value DESC, label LIMIT 8`,
         values
       ),
       pool.query(
-        `SELECT TO_CHAR(DATE_TRUNC('month', t.finished_at), 'YYYY-MM') AS month,
+        `SELECT TO_CHAR(DATE_TRUNC(
+                  'month', COALESCE(t.finished_at, t.started_at, t.created_at)
+                ), 'YYYY-MM') AS month,
                 COUNT(*)::int AS books,
-                COALESCE(SUM((t.finished_at - t.started_at) + 1) FILTER (
-                  WHERE t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                COALESCE(SUM(
+                  CASE
+                    WHEN t.status = 'Leído'
+                      AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                      THEN (t.finished_at - t.started_at) + 1
+                    WHEN t.status = 'Leyendo' AND t.started_at IS NOT NULL
+                      THEN (CURRENT_DATE - t.started_at) + 1
+                    ELSE 0
+                  END
                 ), 0)::int AS days
          FROM tracking t
-         WHERE ${where} AND t.status = 'Leído'
-           AND t.finished_at >= DATE_TRUNC(
+         WHERE ${where}
+           AND COALESCE(t.finished_at, t.started_at, t.created_at) >= DATE_TRUNC(
              'month', COALESCE($3::date, CURRENT_DATE)
            ) - INTERVAL '11 months'
-         GROUP BY DATE_TRUNC('month', t.finished_at)
-         ORDER BY DATE_TRUNC('month', t.finished_at)`,
+         GROUP BY DATE_TRUNC(
+           'month', COALESCE(t.finished_at, t.started_at, t.created_at)
+         )
+         ORDER BY DATE_TRUNC(
+           'month', COALESCE(t.finished_at, t.started_at, t.created_at)
+         )`,
         values
       ),
       pool.query(
         `SELECT t.id, b.title, b.author, b.cover_url AS cover, b.pages,
+                b.progress_unit AS "progressUnit", t.status,
+                t.current_page AS "currentPage",
                 t.rating, t.started_at AS "startedAt", t.finished_at AS "finishedAt",
                 t.format, t.reading_provider AS "readingProvider",
-                CASE WHEN t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
-                  THEN (t.finished_at - t.started_at) + 1 ELSE NULL
+                CASE
+                  WHEN t.status = 'Leído'
+                    AND t.started_at IS NOT NULL AND t.finished_at IS NOT NULL
+                    THEN (t.finished_at - t.started_at) + 1
+                  WHEN t.status = 'Leyendo' AND t.started_at IS NOT NULL
+                    THEN (CURRENT_DATE - t.started_at) + 1
+                  ELSE NULL
                 END AS "durationDays"
          FROM tracking t JOIN books b ON b.id = t.book_id
-         WHERE ${where} AND t.status = 'Leído'
-         ORDER BY t.finished_at DESC NULLS LAST, t.updated_at DESC`,
+         WHERE ${where}
+         ORDER BY t.updated_at DESC`,
         values
       ),
       pool.query(
@@ -107,7 +153,6 @@ export function createDashboardRouter({ pool }) {
                 COUNT(*)::int AS value
          FROM tracking t
          WHERE ${where} AND t.format IN ('Digital', 'Ambos')
-           AND (t.archived_at IS NULL OR t.status = 'Leído')
          GROUP BY COALESCE(t.reading_provider, 'Sin especificar')
          ORDER BY value DESC, label LIMIT 8`,
         values
@@ -115,7 +160,7 @@ export function createDashboardRouter({ pool }) {
       pool.query(
         `SELECT t.format AS label, COUNT(*)::int AS value
          FROM tracking t
-         WHERE ${where} AND (t.archived_at IS NULL OR t.status = 'Leído')
+         WHERE ${where}
          GROUP BY t.format ORDER BY value DESC, label`,
         values
       ),
@@ -124,7 +169,7 @@ export function createDashboardRouter({ pool }) {
                   COALESCE(t.finished_at, t.started_at, t.created_at)), 'YYYY-MM') AS month,
                 t.format AS label, COUNT(*)::int AS value
          FROM tracking t
-         WHERE ${where} AND (t.archived_at IS NULL OR t.status = 'Leído')
+         WHERE ${where}
          GROUP BY DATE_TRUNC('month',
                     COALESCE(t.finished_at, t.started_at, t.created_at)), t.format
          ORDER BY month, label`,
@@ -139,10 +184,15 @@ export function createDashboardRouter({ pool }) {
     response.json({
       filters,
       summary: {
+        totalBooks: numberOrZero(summary.total_books),
         readBooks: numberOrZero(summary.read_books),
         readingBooks: numberOrZero(summary.reading_books),
+        nextBooks: numberOrZero(summary.next_books),
+        pausedBooks: numberOrZero(summary.paused_books),
+        droppedBooks: numberOrZero(summary.dropped_books),
         totalDays: numberOrZero(summary.total_days),
         pagesRead: numberOrZero(summary.pages_read),
+        chaptersRead: numberOrZero(summary.chapters_read),
         averageRating: nullableNumber(summary.average_rating),
         averageDays: nullableNumber(summary.average_days),
         topGenre: genres[0]?.label || null,
@@ -157,6 +207,7 @@ export function createDashboardRouter({ pool }) {
       books: booksResult.rows.map((book) => ({
         ...book,
         pages: numberOrZero(book.pages),
+        currentPage: nullableNumber(book.currentPage),
         rating: numberOrZero(book.rating),
         durationDays: nullableNumber(book.durationDays)
       }))

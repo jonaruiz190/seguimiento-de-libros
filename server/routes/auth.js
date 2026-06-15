@@ -61,6 +61,11 @@ export function createAuthRouter({ pool, config }) {
   }));
 
   router.post("/register", registerLimiter, asyncHandler(async (request, response) => {
+    if (config.allowRegistration === false) {
+      return response.status(403).json({
+        error: "El registro de nuevas cuentas no está habilitado."
+      });
+    }
     const registration = validate(registerSchema, request.body);
     const passwordHash = await hashPassword(registration.password);
     const client = await pool.connect();
