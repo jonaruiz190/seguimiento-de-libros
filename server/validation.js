@@ -7,6 +7,15 @@ export const loginSchema = z.object({
 
 export const registerSchema = z.object({
   name: z.string().trim().min(2).max(120),
+  username: z.string()
+    .trim()
+    .toLowerCase()
+    .min(3)
+    .max(30)
+    .regex(
+      /^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?$/,
+      "Usa letras minúsculas, números, punto, guion o guion bajo."
+    ),
   email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
   password: z.string()
     .min(12, "La contraseña debe tener al menos 12 caracteres.")
@@ -48,6 +57,15 @@ const strongPassword = z.string()
 
 export const profileSchema = z.object({
   name: z.string().trim().min(2).max(120),
+  username: z.string()
+    .trim()
+    .toLowerCase()
+    .min(3)
+    .max(30)
+    .regex(
+      /^[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?$/,
+      "Usa letras minúsculas, números, punto, guion o guion bajo."
+    ),
   avatarUrl: z.union([
     z.url().max(2000).refine((value) => ["http:", "https:"].includes(new URL(value).protocol), {
       message: "La foto debe ser una URL http o https."

@@ -29,7 +29,7 @@ export function requireAuth(pool) {
 
     const tokenHash = hashSessionToken(token);
     const result = await pool.query(
-      `SELECT u.id, u.name, u.email, u.avatar_url, u.language,
+      `SELECT u.id, u.name, u.username, u.email, u.avatar_url, u.language,
               u.spotify_playlist_url
        FROM sessions s
        JOIN users u ON u.id = s.user_id

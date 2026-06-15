@@ -65,9 +65,9 @@ try {
     if (!existingDemo.rowCount) {
       const passwordHash = await hashPassword("libros123");
       await client.query(
-        `INSERT INTO users (id, name, email, password_hash)
-         VALUES ($1, $2, $3, $4)`,
-        [demoUserId, "Ana Torres", "ana@libros.com", passwordHash]
+        `INSERT INTO users (id, name, username, email, password_hash)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [demoUserId, "Ana Torres", "ana_lectora", "ana@libros.com", passwordHash]
       );
       for (const category of ["Fantasía", "Clásicos", "Realismo mágico"]) {
         await client.query(

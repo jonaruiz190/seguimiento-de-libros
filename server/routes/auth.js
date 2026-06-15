@@ -45,7 +45,7 @@ export function createAuthRouter({ pool, config }) {
   router.post("/login", loginLimiter, asyncHandler(async (request, response) => {
     const credentials = validate(loginSchema, request.body);
     const result = await pool.query(
-      `SELECT id, name, email, avatar_url, language, spotify_playlist_url,
+      `SELECT id, name, username, email, avatar_url, language, spotify_playlist_url,
               password_hash
        FROM users WHERE email = $1`,
       [credentials.email]
@@ -74,10 +74,10 @@ export function createAuthRouter({ pool, config }) {
     try {
       await client.query("BEGIN");
       const result = await client.query(
-        `INSERT INTO users (name, email, password_hash)
-         VALUES ($1, $2, $3)
-         RETURNING id, name, email, avatar_url`,
-        [registration.name, registration.email, passwordHash]
+        `INSERT INTO users (name, username, email, password_hash)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, name, username, email, avatar_url`,
+        [registration.name, registration.username, registration.email, passwordHash]
       );
       user = result.rows[0];
 
@@ -92,7 +92,9 @@ export function createAuthRouter({ pool, config }) {
       await client.query("ROLLBACK");
       if (error.code === "23505") {
         error.status = 409;
-        error.message = "Ya existe una cuenta con ese correo.";
+        error.message = error.constraint === "users_username_lower_unique"
+          ? "Ese nombre de usuario ya está en uso."
+          : "Ya existe una cuenta con ese correo.";
       }
       throw error;
     } finally {
@@ -188,22 +190,22 @@ export function createAuthRouter({ pool, config }) {
         const passwordHash = await hashPassword(profile.newPassword);
         await client.query(
           `UPDATE users
-           SET name = $1, avatar_url = $2, language = $3,
-               spotify_playlist_url = $4, password_hash = $5, updated_at = NOW()
-           WHERE id = $6`,
+           SET name = $1, username = $2, avatar_url = $3, language = $4,
+               spotify_playlist_url = $5, password_hash = $6, updated_at = NOW()
+           WHERE id = $7`,
           [
-            profile.name, profile.avatarUrl, profile.language,
+            profile.name, profile.username, profile.avatarUrl, profile.language,
             profile.spotifyPlaylistUrl, passwordHash, request.user.id
           ]
         );
       } else {
         await client.query(
           `UPDATE users
-           SET name = $1, avatar_url = $2, language = $3,
-               spotify_playlist_url = $4, updated_at = NOW()
-           WHERE id = $5`,
+           SET name = $1, username = $2, avatar_url = $3, language = $4,
+               spotify_playlist_url = $5, updated_at = NOW()
+           WHERE id = $6`,
           [
-            profile.name, profile.avatarUrl, profile.language,
+            profile.name, profile.username, profile.avatarUrl, profile.language,
             profile.spotifyPlaylistUrl, request.user.id
           ]
         );
@@ -225,13 +227,17 @@ export function createAuthRouter({ pool, config }) {
       await client.query("COMMIT");
     } catch (error) {
       await client.query("ROLLBACK");
+      if (error.code === "23505" && error.constraint === "users_username_lower_unique") {
+        error.status = 409;
+        error.message = "Ese nombre de usuario ya está en uso.";
+      }
       throw error;
     } finally {
       client.release();
     }
 
     const user = await pool.query(
-      `SELECT id, name, email, avatar_url, language, spotify_playlist_url
+      `SELECT id, name, username, email, avatar_url, language, spotify_playlist_url
        FROM users WHERE id = $1`,
       [request.user.id]
     );
@@ -320,6 +326,7 @@ async function getPublicUser(pool, user) {
   return {
     id: user.id,
     name: user.name,
+    username: user.username,
     email: user.email,
     avatarUrl: user.avatar_url || null,
     language: user.language || "es",

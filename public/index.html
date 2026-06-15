@@ -78,6 +78,14 @@
             <button id="profile-button" type="button">Editar perfil</button>
             <button id="help-button" type="button">Ayuda y preguntas frecuentes</button>
             <button id="support-button" type="button">Contactar con soporte</button>
+            <a href="https://github.com/jonaruiz190/seguimiento-de-libros"
+              target="_blank" rel="noopener noreferrer">Código fuente</a>
+            <a href="https://github.com/jonaruiz190/seguimiento-de-libros/blob/main/LICENSE"
+              target="_blank" rel="noopener noreferrer">Licencia AGPL-3.0</a>
+            <a href="https://github.com/jonaruiz190/seguimiento-de-libros/blob/main/PRIVACY.md"
+              target="_blank" rel="noopener noreferrer">Privacidad</a>
+            <a href="https://github.com/jonaruiz190/seguimiento-de-libros/blob/main/TERMS.md"
+              target="_blank" rel="noopener noreferrer">Términos de uso</a>
             <button id="logout-button" type="button">Cerrar sesión</button>
           </div>
         </div>
@@ -555,6 +563,10 @@
       <h2 id="register-title">Crear una cuenta</h2>
       <label for="register-name">Nombre</label>
       <input id="register-name" type="text" autocomplete="name" maxlength="120" required>
+      <label for="register-username">Nombre de usuario</label>
+      <input id="register-username" type="text" autocomplete="username" minlength="3"
+        maxlength="30" pattern="[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?" required>
+      <p class="field-hint">Entre 3 y 30 caracteres: minúsculas, números, punto, guion o guion bajo.</p>
       <label for="register-email">Correo electrónico</label>
       <input id="register-email" type="email" autocomplete="email" maxlength="254" required>
       <label for="register-password">Contraseña</label>
@@ -585,6 +597,9 @@
       <h2 id="profile-title">Editar perfil</h2>
       <label for="profile-name">Nombre</label>
       <input id="profile-name" type="text" maxlength="120" required>
+      <label for="profile-username">Nombre de usuario</label>
+      <input id="profile-username" type="text" autocomplete="username" minlength="3"
+        maxlength="30" pattern="[a-z0-9](?:[a-z0-9._-]{1,28}[a-z0-9])?" required>
       <label for="profile-avatar">Foto de perfil</label>
       <div class="profile-avatar-preview">
         <img id="profile-avatar-preview" src="/covers/fallback.svg" alt="Vista previa de perfil">

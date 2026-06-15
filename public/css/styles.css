@@ -478,20 +478,26 @@ textarea:focus {
   box-shadow: var(--shadow);
 }
 
-.user-dropdown button {
+.user-dropdown button,
+.user-dropdown a {
+  display: block;
   padding: 12px;
   text-align: left;
+  color: inherit;
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
+  font-size: 0.82rem;
+  text-decoration: none;
 }
 
-.user-dropdown button:last-child {
+.user-dropdown > :last-child {
   border-bottom: 0;
 }
 
-.user-dropdown button:hover {
+.user-dropdown button:hover,
+.user-dropdown a:hover {
   color: var(--green);
   background: var(--sage);
 }

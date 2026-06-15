@@ -319,6 +319,7 @@ async function handleRegister(event) {
       method: "POST",
       body: JSON.stringify({
         name: $("#register-name").value.trim(),
+        username: $("#register-username").value.trim().toLowerCase(),
         email: $("#register-email").value.trim(),
         password: $("#register-password").value,
         preferences
@@ -986,6 +987,7 @@ function openProfileModal() {
   $("#user-button").setAttribute("aria-expanded", "false");
   $("#profile-form").reset();
   $("#profile-name").value = state.user.name;
+  $("#profile-username").value = state.user.username;
   $("#profile-avatar").value = state.user.avatarUrl?.startsWith("http") ? state.user.avatarUrl : "";
   state.avatarDataUrl = state.user.avatarUrl?.startsWith("data:") ? state.user.avatarUrl : null;
   updateAvatarPreview();
@@ -1092,6 +1094,9 @@ function profilePayload(overrides = {}) {
   const editing = !$("#profile-modal").classList.contains("is-hidden");
   return {
     name: editing ? $("#profile-name").value.trim() : state.user.name,
+    username: editing
+      ? $("#profile-username").value.trim().toLowerCase()
+      : state.user.username,
     avatarUrl: editing
       ? state.avatarDataUrl || $("#profile-avatar").value.trim() || null
       : state.user.avatarUrl || null,
