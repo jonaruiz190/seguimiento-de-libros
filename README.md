@@ -14,7 +14,9 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 ## Funcionalidades
 
 - Login contra usuarios almacenados en PostgreSQL.
-- Registro de cuentas con validación de contraseñas robustas.
+- Registro inicial seguro y altas posteriores mediante invitaciones de un solo uso.
+- Panel administrador para emitir o revocar invitaciones, cambiar roles y
+  activar o desactivar cuentas.
 - Recomendaciones de al menos 20 resultados por categoría, sin duplicados.
 - Buscador conectado a Open Library y AniList para libros, manga, manhwa,
   manhua, webtoons y novelas ligeras.
@@ -109,6 +111,7 @@ npm run db:seed
 - `GET /api/health`
 - `POST /api/auth/login`
 - `POST /api/auth/register`
+- `GET /api/auth/invitation?token=...`
 - `POST /api/auth/forgot-password`
 - `POST /api/auth/reset-password`
 - `GET /api/auth/me`
@@ -131,6 +134,10 @@ npm run db:seed
 - `GET /api/integrations/spotify/callback`
 - `GET /api/integrations/spotify/playlists`
 - `DELETE /api/integrations/spotify`
+- `GET /api/admin/overview`
+- `POST /api/admin/invitations`
+- `DELETE /api/admin/invitations/:id`
+- `PATCH /api/admin/users/:id`
 
 ## Configuración
 
@@ -196,7 +203,7 @@ panel de Render. No guarda credenciales en GitHub.
    - `DATABASE_SSL=true` y `DATABASE_SSL_REJECT_UNAUTHORIZED=true`.
    - `APP_ORIGIN`: URL HTTPS final de Render, sin barra al final.
    - `APP_ALLOWED_ORIGINS`: la misma URL mientras no exista otro dominio.
-   - `ALLOW_REGISTRATION=false`: mantiene el lanzamiento privado.
+   - `ALLOW_REGISTRATION=false`: mantiene el lanzamiento por invitación.
    - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` y `SPOTIFY_REDIRECT_URI`.
    - `NYT_BOOKS_API_KEY`.
    - `GITHUB_SUPPORT_TOKEN` y `GITHUB_SUPPORT_REPO`.
@@ -209,6 +216,13 @@ panel de Render. No guarda credenciales en GitHub.
    `npm run db:seed` en producción.
 7. Comprueba `/api/health`, registro, login, Spotify, soporte y recuperación de
    contraseña.
+
+Cuando la tabla `users` está vacía, la aplicación permite crear una única cuenta
+inicial y le asigna el rol `admin`. Después de ese registro, el alta vuelve a
+cerrarse automáticamente y las nuevas cuentas requieren una invitación emitida
+desde **Administrar usuarios**. Configura Resend para que la invitación también
+verifique el control del buzón; sin Resend, el administrador puede compartir el
+enlace manualmente y la cuenta quedará marcada como correo sin verificar.
 
 `TRANSLATION_API_URL` es opcional. LibreTranslate consume más memoria que la
 instancia web gratuita, por lo que debe ejecutarse como servicio independiente

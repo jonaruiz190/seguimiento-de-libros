@@ -9,7 +9,9 @@ import { createDashboardRouter } from "./routes/dashboard.js";
 import { createCatalogRouter } from "./routes/catalog.js";
 import { createIntegrationsRouter } from "./routes/integrations.js";
 import { createSupportRouter } from "./routes/support.js";
+import { createAdminRouter } from "./routes/admin.js";
 import {
+  asyncHandler,
   errorHandler,
   notFound,
   requireTrustedOrigin
@@ -56,13 +58,16 @@ export function createApp({ pool, config }) {
       next(error);
     }
   });
-  app.get("/api/runtime", (request, response) => {
+  app.get("/api/runtime", asyncHandler(async (request, response) => {
+    const users = await pool.query("SELECT COUNT(*)::int AS total FROM users");
+    const bootstrapRegistration = Number(users.rows[0]?.total || 0) === 0;
     response.set("Cache-Control", "no-store");
     response.json({
       demoMode: !config.isProduction,
-      registrationEnabled: config.allowRegistration !== false
+      registrationEnabled: config.allowRegistration !== false || bootstrapRegistration,
+      registrationMode: bootstrapRegistration ? "bootstrap" : "invitation"
     });
-  });
+  }));
   app.use("/api/auth", createAuthRouter({ pool, config }));
   app.use("/api/books", createBooksRouter({ pool, config }));
   app.use("/api/tracking", createTrackingRouter({ pool, config }));
@@ -70,6 +75,7 @@ export function createApp({ pool, config }) {
   app.use("/api/catalog", createCatalogRouter({ pool, config }));
   app.use("/api/integrations", createIntegrationsRouter({ pool, config }));
   app.use("/api/support", createSupportRouter({ pool, config }));
+  app.use("/api/admin", createAdminRouter({ pool, config }));
 
   app.use(express.static(publicDirectory, {
     extensions: ["html"],

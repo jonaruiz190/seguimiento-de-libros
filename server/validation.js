@@ -23,7 +23,19 @@ export const registerSchema = z.object({
     .regex(/[a-z]/, "Debe incluir una letra minúscula.")
     .regex(/[A-Z]/, "Debe incluir una letra mayúscula.")
     .regex(/[0-9]/, "Debe incluir un número."),
-  preferences: z.array(z.string().trim().min(2).max(100)).max(5).default([])
+  preferences: z.array(z.string().trim().min(2).max(100)).max(5).default([]),
+  invitationToken: z.string().trim().min(32).max(200).optional()
+}).strict();
+
+export const invitationSchema = z.object({
+  email: z.string().trim().email().max(254).transform((value) => value.toLowerCase()),
+  role: z.enum(["admin", "user"]).default("user"),
+  expirationDays: z.coerce.number().int().min(1).max(30).default(7)
+}).strict();
+
+export const adminUserUpdateSchema = z.object({
+  role: z.enum(["admin", "user"]),
+  isActive: z.boolean()
 }).strict();
 
 export const trackingSchema = z.object({

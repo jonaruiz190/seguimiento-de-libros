@@ -46,13 +46,14 @@ export function createAuthRouter({ pool, config }) {
     const credentials = validate(loginSchema, request.body);
     const result = await pool.query(
       `SELECT id, name, username, email, avatar_url, language, spotify_playlist_url,
-              password_hash
+              password_hash, role, is_active, email_verified_at
        FROM users WHERE email = $1`,
       [credentials.email]
     );
     const user = result.rows[0];
 
-    if (!user || !(await verifyPassword(credentials.password, user.password_hash))) {
+    if (!user || !user.is_active ||
+        !(await verifyPassword(credentials.password, user.password_hash))) {
       return response.status(401).json({ error: "Correo o contraseña incorrectos." });
     }
 
@@ -60,24 +61,102 @@ export function createAuthRouter({ pool, config }) {
     return response.json({ user: await getPublicUser(pool, user) });
   }));
 
-  router.post("/register", registerLimiter, asyncHandler(async (request, response) => {
-    if (config.allowRegistration === false) {
-      return response.status(403).json({
-        error: "El registro de nuevas cuentas no está habilitado."
-      });
+  router.get("/invitation", asyncHandler(async (request, response) => {
+    const token = String(request.query.token || "");
+    if (token.length < 32 || token.length > 200) {
+      return response.status(400).json({ error: "La invitacion no es valida." });
     }
+    const invitation = await pool.query(
+      `SELECT email, role, expires_at
+       FROM user_invitations
+       WHERE token_hash = $1
+         AND accepted_at IS NULL
+         AND revoked_at IS NULL
+         AND expires_at > NOW()`,
+      [hashSessionToken(token)]
+    );
+    if (!invitation.rowCount) {
+      return response.status(404).json({ error: "La invitacion expiro o ya fue utilizada." });
+    }
+    response.set("Cache-Control", "no-store");
+    response.json({
+      invitation: {
+        email: invitation.rows[0].email,
+        role: invitation.rows[0].role,
+        expiresAt: invitation.rows[0].expires_at
+      }
+    });
+  }));
+
+  router.post("/register", registerLimiter, asyncHandler(async (request, response) => {
     const registration = validate(registerSchema, request.body);
+    if (config.allowRegistration === false && !registration.invitationToken) {
+      const users = await pool.query("SELECT COUNT(*)::int AS total FROM users");
+      if (Number(users.rows[0]?.total || 0) > 0) {
+        return response.status(403).json({
+          error: "Necesitas una invitación para crear la cuenta."
+        });
+      }
+    }
     const passwordHash = await hashPassword(registration.password);
     const client = await pool.connect();
     let user;
 
     try {
       await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(734921)");
+      const userCount = await client.query("SELECT COUNT(*)::int AS total FROM users");
+      const isBootstrap = Number(userCount.rows[0]?.total || 0) === 0;
+      let role = "user";
+      let invitationId = null;
+      let emailVerifiedAt = new Date();
+
+      if (isBootstrap) {
+        role = "admin";
+      } else if (registration.invitationToken) {
+        const invitation = await client.query(
+          `SELECT id, email, role, delivered_at
+           FROM user_invitations
+           WHERE token_hash = $1
+             AND accepted_at IS NULL
+             AND revoked_at IS NULL
+             AND expires_at > NOW()
+           FOR UPDATE`,
+          [hashSessionToken(registration.invitationToken)]
+        );
+        if (!invitation.rowCount) {
+          const error = new Error("La invitación expiró o ya fue utilizada.");
+          error.status = 403;
+          throw error;
+        }
+        if (invitation.rows[0].email.toLowerCase() !== registration.email) {
+          const error = new Error("La invitación pertenece a otro correo.");
+          error.status = 403;
+          throw error;
+        }
+        role = invitation.rows[0].role;
+        invitationId = invitation.rows[0].id;
+        emailVerifiedAt = invitation.rows[0].delivered_at ? new Date() : null;
+      } else if (config.allowRegistration === false) {
+        const error = new Error("Necesitas una invitación para crear la cuenta.");
+        error.status = 403;
+        throw error;
+      }
+
       const result = await client.query(
-        `INSERT INTO users (name, username, email, password_hash)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, name, username, email, avatar_url`,
-        [registration.name, registration.username, registration.email, passwordHash]
+        `INSERT INTO users
+           (name, username, email, password_hash, role, email_verified_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, name, username, email, avatar_url, role,
+                   is_active, email_verified_at`,
+        [
+          registration.name,
+          registration.username,
+          registration.email,
+          passwordHash,
+          role,
+          emailVerifiedAt
+        ]
       );
       user = result.rows[0];
 
@@ -85,6 +164,12 @@ export function createAuthRouter({ pool, config }) {
         await client.query(
           "INSERT INTO user_preferences (user_id, category) VALUES ($1, $2)",
           [user.id, category]
+        );
+      }
+      if (invitationId) {
+        await client.query(
+          "UPDATE user_invitations SET accepted_at = NOW() WHERE id = $1",
+          [invitationId]
         );
       }
       await client.query("COMMIT");
@@ -237,7 +322,8 @@ export function createAuthRouter({ pool, config }) {
     }
 
     const user = await pool.query(
-      `SELECT id, name, username, email, avatar_url, language, spotify_playlist_url
+      `SELECT id, name, username, email, avatar_url, language, spotify_playlist_url,
+              role, is_active, email_verified_at
        FROM users WHERE id = $1`,
       [request.user.id]
     );
@@ -252,6 +338,16 @@ export function createAuthRouter({ pool, config }) {
     );
     if (!current.rowCount || !(await verifyPassword(input.password, current.rows[0].password_hash))) {
       return response.status(401).json({ error: "La contraseña no es correcta." });
+    }
+    if (request.user.role === "admin") {
+      const admins = await pool.query(
+        "SELECT COUNT(*)::int AS total FROM users WHERE role = 'admin' AND is_active = TRUE"
+      );
+      if (admins.rows[0].total <= 1) {
+        return response.status(409).json({
+          error: "No puedes eliminar la unica cuenta administradora activa."
+        });
+      }
     }
     await pool.query("DELETE FROM users WHERE id = $1", [request.user.id]);
     response.clearCookie("sid", {
@@ -328,6 +424,9 @@ async function getPublicUser(pool, user) {
     name: user.name,
     username: user.username,
     email: user.email,
+    role: user.role || "user",
+    isAdmin: user.role === "admin",
+    emailVerified: Boolean(user.email_verified_at),
     avatarUrl: user.avatar_url || null,
     language: user.language || "es",
     spotifyPlaylistUrl: user.spotify_playlist_url || null,

@@ -30,10 +30,10 @@ export function requireAuth(pool) {
     const tokenHash = hashSessionToken(token);
     const result = await pool.query(
       `SELECT u.id, u.name, u.username, u.email, u.avatar_url, u.language,
-              u.spotify_playlist_url
+              u.spotify_playlist_url, u.role, u.is_active, u.email_verified_at
        FROM sessions s
        JOIN users u ON u.id = s.user_id
-       WHERE s.token_hash = $1 AND s.expires_at > NOW()`,
+       WHERE s.token_hash = $1 AND s.expires_at > NOW() AND u.is_active = TRUE`,
       [tokenHash]
     );
 
@@ -46,6 +46,15 @@ export function requireAuth(pool) {
     request.sessionTokenHash = tokenHash;
     return next();
   });
+}
+
+export function requireAdmin() {
+  return (request, response, next) => {
+    if (request.user?.role !== "admin") {
+      return response.status(403).json({ error: "Se requieren permisos de administrador." });
+    }
+    return next();
+  };
 }
 
 export function notFound(request, response) {

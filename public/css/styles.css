@@ -502,6 +502,134 @@ textarea:focus {
   background: var(--sage);
 }
 
+.admin-console {
+  width: min(1080px, 100%);
+  max-height: min(90vh, 900px);
+  padding: 42px;
+  overflow: auto;
+}
+
+.admin-invite-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.4fr) minmax(140px, 0.7fr) minmax(120px, 0.6fr) auto;
+  gap: 14px;
+  margin: 24px 0 10px;
+  align-items: end;
+}
+
+.admin-invite-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.invitation-result {
+  margin: 18px 0 28px;
+  padding: 16px;
+  background: var(--cream);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.copy-field {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  margin-top: 7px;
+}
+
+.admin-section-heading {
+  display: flex;
+  margin-top: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-section-heading h3 {
+  margin: 0;
+}
+
+.admin-table-wrap {
+  margin-top: 12px;
+}
+
+.admin-table {
+  min-width: 780px;
+}
+
+.admin-user-main {
+  display: grid;
+  gap: 2px;
+}
+
+.admin-user-main small,
+.admin-invitation small {
+  color: var(--muted);
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.admin-actions select {
+  min-width: 112px;
+}
+
+.admin-invitations {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-invitation {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto auto;
+  gap: 14px;
+  padding: 14px 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.status-pill {
+  display: inline-flex;
+  width: fit-content;
+  padding: 4px 9px;
+  color: var(--ink);
+  background: var(--cream);
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.status-pill--active {
+  color: #275c45;
+  background: #dcefe5;
+}
+
+.status-pill--inactive {
+  color: #8b3434;
+  background: #f6dddd;
+}
+
+@media (max-width: 800px) {
+  .admin-invite-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-invite-form label:first-child,
+  .admin-invite-form .button {
+    grid-column: 1 / -1;
+  }
+
+  .admin-invitation {
+    grid-template-columns: 1fr;
+  }
+}
+
 main {
   min-height: calc(100vh - 76px);
 }
