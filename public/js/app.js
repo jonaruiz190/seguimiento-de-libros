@@ -13,7 +13,9 @@ const state = {
   trackingSearch: "",
   statusFilter: "all",
   trackingSort: "updated-desc",
-  spotifyPlaylistsLoaded: false
+  spotifyPlaylistsLoaded: false,
+  invitation: null,
+  admin: null
 };
 let pendingRequests = 0;
 
@@ -47,6 +49,10 @@ async function init() {
     ]);
     $("#demo-hint").classList.toggle("is-hidden", !runtime.demoMode);
     $("#open-register-button").classList.toggle("is-hidden", !runtime.registrationEnabled);
+    $("#register-mode-message").textContent = runtime.registrationMode === "bootstrap"
+      ? "Crearás la primera cuenta administradora de la aplicación."
+      : "El registro requiere una invitación emitida por un administrador.";
+    await prepareInvitation();
     if (session) await enterApp(session.user);
   } catch (error) {
     $("#login-error").textContent = "No se pudo conectar con el servidor.";
@@ -128,6 +134,7 @@ function bindEvents() {
   $("#open-register-button").addEventListener("click", openRegisterModal);
   $("#logout-button").addEventListener("click", logout);
   $("#profile-button").addEventListener("click", openProfileModal);
+  $("#admin-button").addEventListener("click", openAdminModal);
   $("#help-button").addEventListener("click", openHelpModal);
   $("#support-button").addEventListener("click", openSupportModal);
   $("#support-form").addEventListener("submit", sendSupportReport);
@@ -188,6 +195,11 @@ function bindEvents() {
   $("#forgot-password-button").addEventListener("click", openForgotPasswordModal);
   $("#forgot-password-form").addEventListener("submit", requestPasswordReset);
   $("#reset-password-form").addEventListener("submit", resetPassword);
+  $("#invitation-form").addEventListener("submit", createInvitation);
+  $("#refresh-admin").addEventListener("click", loadAdminOverview);
+  $("#copy-invitation").addEventListener("click", copyInvitationUrl);
+  $("#admin-users").addEventListener("click", handleAdminUserAction);
+  $("#admin-invitations").addEventListener("click", handleInvitationAction);
 
   $$("[data-view]").forEach((button) => {
     button.addEventListener("click", () => showView(button.dataset.view));
@@ -222,6 +234,9 @@ function bindEvents() {
   $$("[data-close-support]").forEach((element) => {
     element.addEventListener("click", closeSupportModal);
   });
+  $$("[data-close-admin]").forEach((element) => {
+    element.addEventListener("click", closeAdminModal);
+  });
   $$("input[name='preference']").forEach((checkbox) => {
     checkbox.addEventListener("change", enforcePreferenceLimit);
   });
@@ -236,6 +251,7 @@ function bindEvents() {
       closeForgotPasswordModal();
       closeHelpModal();
       closeSupportModal();
+      closeAdminModal();
       closeSpotifyPanel();
     }
   });
@@ -306,6 +322,21 @@ function delay(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+async function prepareInvitation() {
+  const token = new URL(window.location.href).searchParams.get("invite");
+  if (!token) return;
+  try {
+    const result = await api(`/api/auth/invitation?token=${encodeURIComponent(token)}`, {
+      loadingText: "Validando invitación..."
+    });
+    state.invitation = { token, ...result.invitation };
+    $("#open-register-button").classList.remove("is-hidden");
+    openRegisterModal();
+  } catch (error) {
+    $("#login-error").textContent = error.message;
+  }
+}
+
 async function handleRegister(event) {
   event.preventDefault();
   const errorElement = $("#register-error");
@@ -322,10 +353,17 @@ async function handleRegister(event) {
         username: $("#register-username").value.trim().toLowerCase(),
         email: $("#register-email").value.trim(),
         password: $("#register-password").value,
-        preferences
+        preferences,
+        ...($("#register-invitation-token").value
+          ? { invitationToken: $("#register-invitation-token").value }
+          : {})
       })
     });
     closeRegisterModal();
+    state.invitation = null;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("invite");
+    window.history.replaceState({}, "", url);
     await enterApp(result.user);
   } catch (error) {
     errorElement.textContent = error.message;
@@ -335,7 +373,15 @@ async function handleRegister(event) {
 }
 
 function openRegisterModal() {
+  const invitation = state.invitation;
   $("#register-form").reset();
+  $("#register-invitation-token").value = invitation?.token || "";
+  $("#register-email").value = invitation?.email || "";
+  $("#register-email").readOnly = Boolean(invitation);
+  if (invitation) {
+    $("#register-mode-message").textContent =
+      `Invitación para ${invitation.email}. Este enlace es de un solo uso.`;
+  }
   $("#register-error").textContent = "";
   $("#register-modal").classList.remove("is-hidden");
   document.body.style.overflow = "hidden";
@@ -473,6 +519,7 @@ function renderUserIdentity() {
     image.classList.remove("is-hidden");
     initial.classList.add("is-hidden");
   }
+  $("#admin-button").classList.toggle("is-hidden", !state.user.isAdmin);
 }
 
 function toggleSpotifyPanel() {
@@ -1005,6 +1052,186 @@ function openProfileModal() {
 function closeProfileModal() {
   $("#profile-modal").classList.add("is-hidden");
   restoreBodyScroll();
+}
+
+async function openAdminModal() {
+  $("#user-dropdown").classList.add("is-hidden");
+  $("#user-button").setAttribute("aria-expanded", "false");
+  $("#admin-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  $("#invitation-message").textContent = "";
+  await loadAdminOverview();
+}
+
+function closeAdminModal() {
+  $("#admin-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+async function loadAdminOverview() {
+  if (!state.user?.isAdmin) return;
+  try {
+    state.admin = await api("/api/admin/overview", {
+      loadingText: "Cargando administración..."
+    });
+    renderAdminUsers();
+    renderAdminInvitations();
+  } catch (error) {
+    $("#invitation-message").textContent = error.message;
+  }
+}
+
+async function createInvitation(event) {
+  event.preventDefault();
+  const message = $("#invitation-message");
+  const button = event.currentTarget.querySelector("button[type='submit']");
+  message.textContent = "";
+  button.disabled = true;
+  try {
+    const result = await api("/api/admin/invitations", {
+      method: "POST",
+      loadingText: "Creando invitación...",
+      body: JSON.stringify({
+        email: $("#invitation-email").value.trim(),
+        role: $("#invitation-role").value,
+        expirationDays: Number($("#invitation-days").value)
+      })
+    });
+    $("#invitation-url").value = result.inviteUrl;
+    $("#invitation-result").classList.remove("is-hidden");
+    message.textContent = result.delivered
+      ? "Invitación enviada por correo y lista para compartir."
+      : (result.deliveryError || "Invitación creada. Comparte el enlace manualmente.");
+    event.currentTarget.reset();
+    await loadAdminOverview();
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function copyInvitationUrl() {
+  const input = $("#invitation-url");
+  try {
+    await navigator.clipboard.writeText(input.value);
+    showToast("Enlace de invitación copiado.");
+  } catch {
+    input.select();
+    showToast("Selecciona y copia el enlace.");
+  }
+}
+
+function renderAdminUsers() {
+  const users = state.admin?.users || [];
+  $("#admin-users").innerHTML = users.map((user) => `
+    <tr data-admin-user-row="${escapeHtml(user.id)}">
+      <td>
+        <span class="admin-user-main">
+          <strong>${escapeHtml(user.name)}</strong>
+          <small>@${escapeHtml(user.username)}</small>
+        </span>
+      </td>
+      <td>
+        <span class="admin-user-main">
+          <span>${escapeHtml(user.email)}</span>
+          <small>${user.emailVerified ? "Correo verificado" : "Correo sin verificar"}</small>
+        </span>
+      </td>
+      <td>
+        <select data-admin-role ${user.id === state.user.id ? "disabled" : ""}>
+          <option value="user" ${user.role === "user" ? "selected" : ""}>Usuario</option>
+          <option value="admin" ${user.role === "admin" ? "selected" : ""}>Administrador</option>
+        </select>
+      </td>
+      <td>
+        <span class="status-pill ${user.isActive ? "status-pill--active" : "status-pill--inactive"}">
+          ${user.isActive ? "Activo" : "Inactivo"}
+        </span>
+      </td>
+      <td>
+        <span class="admin-actions">
+          <button class="button button--secondary" type="button"
+            data-admin-user="${escapeHtml(user.id)}"
+            data-admin-active="${String(!user.isActive)}"
+            ${user.id === state.user.id ? "disabled" : ""}>
+            ${user.isActive ? "Desactivar" : "Activar"}
+          </button>
+          <button class="button button--secondary" type="button"
+            data-admin-save="${escapeHtml(user.id)}"
+            ${user.id === state.user.id ? "disabled" : ""}>
+            Guardar rol
+          </button>
+        </span>
+      </td>
+    </tr>
+  `).join("");
+}
+
+async function handleAdminUserAction(event) {
+  const button = event.target.closest("[data-admin-user], [data-admin-save]");
+  if (!button) return;
+  const id = button.dataset.adminUser || button.dataset.adminSave;
+  const row = button.closest("[data-admin-user-row]");
+  const current = state.admin.users.find((user) => user.id === id);
+  const role = row.querySelector("[data-admin-role]").value;
+  const isActive = button.dataset.adminUser
+    ? button.dataset.adminActive === "true"
+    : current.isActive;
+  button.disabled = true;
+  try {
+    await api(`/api/admin/users/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role, isActive })
+    });
+    await loadAdminOverview();
+    showToast("Usuario actualizado.");
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+  }
+}
+
+function renderAdminInvitations() {
+  const invitations = state.admin?.invitations || [];
+  const labels = {
+    pending: "Pendiente",
+    accepted: "Aceptada",
+    revoked: "Revocada",
+    expired: "Expirada"
+  };
+  $("#admin-invitations").innerHTML = invitations.length
+    ? invitations.map((invitation) => `
+      <article class="admin-invitation">
+        <span class="admin-user-main">
+          <strong>${escapeHtml(invitation.email)}</strong>
+          <small>${invitation.role === "admin" ? "Administrador" : "Usuario"} ·
+            vence ${escapeHtml(formatDate(invitation.expiresAt))}</small>
+        </span>
+        <span class="status-pill">${labels[invitation.status] || invitation.status}</span>
+        ${invitation.status === "pending"
+          ? `<button class="button button--secondary" type="button"
+              data-revoke-invitation="${escapeHtml(invitation.id)}">Revocar</button>`
+          : ""}
+      </article>
+    `).join("")
+    : '<p class="empty-state">No hay invitaciones todavía.</p>';
+}
+
+async function handleInvitationAction(event) {
+  const button = event.target.closest("[data-revoke-invitation]");
+  if (!button) return;
+  button.disabled = true;
+  try {
+    await api(`/api/admin/invitations/${encodeURIComponent(button.dataset.revokeInvitation)}`, {
+      method: "DELETE"
+    });
+    await loadAdminOverview();
+    showToast("Invitación revocada.");
+  } catch (error) {
+    showToast(error.message);
+    button.disabled = false;
+  }
 }
 
 function openHelpModal() {

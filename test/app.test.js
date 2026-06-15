@@ -40,7 +40,11 @@ test("oculta el modo de demostración en producción", async () => {
 });
 
 test("permite deshabilitar el registro público en producción", async () => {
-  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const pool = {
+    query: async (sql) => sql.includes("COUNT(*)")
+      ? { rowCount: 1, rows: [{ total: 1 }] }
+      : { rowCount: 0, rows: [] }
+  };
   const productionConfig = {
     ...config,
     isProduction: true,
@@ -65,6 +69,20 @@ test("permite deshabilitar el registro público en producción", async () => {
 
   assert.equal(runtime.body.registrationEnabled, false);
   assert.equal(registration.status, 403);
+});
+
+test("habilita el registro inicial aunque el registro público esté cerrado", async () => {
+  const pool = {
+    query: async () => ({ rowCount: 1, rows: [{ total: 0 }] })
+  };
+  const runtime = await request(createApp({
+    pool,
+    config: { ...config, isProduction: true, allowRegistration: false }
+  })).get("/api/runtime");
+
+  assert.equal(runtime.status, 200);
+  assert.equal(runtime.body.registrationEnabled, true);
+  assert.equal(runtime.body.registrationMode, "bootstrap");
 });
 
 test("no expone archivos internos del antiguo almacenamiento JSON", async () => {

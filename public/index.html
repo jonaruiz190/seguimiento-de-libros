@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css?v=20260614-3">
+  <link rel="stylesheet" href="/css/styles.css?v=20260615-1">
 </head>
 <body>
   <div id="login-screen" class="login-screen">
@@ -76,6 +76,7 @@
           </button>
           <div id="user-dropdown" class="user-dropdown is-hidden">
             <button id="profile-button" type="button">Editar perfil</button>
+            <button id="admin-button" class="is-hidden" type="button">Administrar usuarios</button>
             <button id="help-button" type="button">Ayuda y preguntas frecuentes</button>
             <button id="support-button" type="button">Contactar con soporte</button>
             <a href="https://github.com/jonaruiz190/seguimiento-de-libros"
@@ -561,6 +562,8 @@
       <button class="modal__close" type="button" data-close-register aria-label="Cerrar">×</button>
       <p class="eyebrow">Comienza tu biblioteca</p>
       <h2 id="register-title">Crear una cuenta</h2>
+      <p id="register-mode-message" class="field-hint"></p>
+      <input id="register-invitation-token" type="hidden">
       <label for="register-name">Nombre</label>
       <input id="register-name" type="text" autocomplete="name" maxlength="120" required>
       <label for="register-username">Nombre de usuario</label>
@@ -739,6 +742,76 @@
     </form>
   </div>
 
+  <div id="admin-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="admin-title">
+    <div class="modal__backdrop" data-close-admin></div>
+    <section class="modal__content admin-console">
+      <button class="modal__close" type="button" data-close-admin aria-label="Cerrar">×</button>
+      <p class="eyebrow">Administración</p>
+      <h2 id="admin-title">Usuarios e invitaciones</h2>
+      <p class="field-hint">
+        El registro público permanece cerrado. Cada enlace solo sirve para el correo indicado.
+      </p>
+
+      <form id="invitation-form" class="admin-invite-form">
+        <label>
+          Correo electrónico
+          <input id="invitation-email" type="email" maxlength="254" required>
+        </label>
+        <label>
+          Rol
+          <select id="invitation-role">
+            <option value="user">Usuario</option>
+            <option value="admin">Administrador</option>
+          </select>
+        </label>
+        <label>
+          Vigencia
+          <select id="invitation-days">
+            <option value="1">1 día</option>
+            <option value="3">3 días</option>
+            <option value="7" selected>7 días</option>
+            <option value="14">14 días</option>
+            <option value="30">30 días</option>
+          </select>
+        </label>
+        <button class="button button--primary" type="submit">Crear invitación</button>
+      </form>
+      <p id="invitation-message" class="form-error" role="status"></p>
+      <div id="invitation-result" class="invitation-result is-hidden">
+        <label for="invitation-url">Enlace de invitación</label>
+        <div class="copy-field">
+          <input id="invitation-url" type="text" readonly>
+          <button id="copy-invitation" class="button button--secondary" type="button">Copiar</button>
+        </div>
+      </div>
+
+      <div class="admin-section-heading">
+        <h3>Usuarios</h3>
+        <button id="refresh-admin" class="button button--secondary" type="button">Actualizar</button>
+      </div>
+      <div class="table-wrap admin-table-wrap">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Usuario</th>
+              <th>Correo</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="admin-users"></tbody>
+        </table>
+      </div>
+
+      <div class="admin-section-heading">
+        <h3>Invitaciones recientes</h3>
+      </div>
+      <div id="admin-invitations" class="admin-invitations"></div>
+    </section>
+  </div>
+
   <div id="auth-notice" class="auth-notice is-hidden" role="status"
     aria-labelledby="auth-notice-title" aria-describedby="auth-notice-message">
     <div class="auth-notice__backdrop"></div>
@@ -755,6 +828,6 @@
     <span class="loading-spinner" aria-hidden="true"></span>
     <strong id="global-loader-text">Cargando...</strong>
   </div>
-  <script src="/js/app.js?v=20260614-3"></script>
+  <script src="/js/app.js?v=20260615-1"></script>
 </body>
 </html>
