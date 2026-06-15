@@ -14,6 +14,7 @@ import {
 test("acepta preferencias ampliadas y avatar local en el perfil", () => {
   const profile = validate(profileSchema, {
     name: "Ana Torres",
+    username: "ana.torres",
     avatarUrl: "data:image/png;base64,aGVsbG8=",
     language: "en",
     preferences: ["Manga", "Fantasía"],

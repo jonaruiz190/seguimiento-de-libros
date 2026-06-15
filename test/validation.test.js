@@ -19,6 +19,7 @@ test("normaliza el correo de login", () => {
 test("valida cambios de perfil y contraseña", () => {
   const profile = validate(profileSchema, {
     name: "Ana Torres",
+    username: "ana.torres",
     avatarUrl: "https://example.com/avatar.jpg",
     currentPassword: "",
     newPassword: ""
@@ -27,6 +28,7 @@ test("valida cambios de perfil y contraseña", () => {
 
   assert.throws(() => validate(profileSchema, {
     name: "Ana Torres",
+    username: "ana.torres",
     avatarUrl: null,
     currentPassword: "",
     newPassword: "NuevaClave2026"
@@ -34,6 +36,7 @@ test("valida cambios de perfil y contraseña", () => {
 
   assert.throws(() => validate(profileSchema, {
     name: "Ana Torres",
+    username: "ana.torres",
     avatarUrl: "javascript:alert(1)",
     currentPassword: "",
     newPassword: ""
@@ -43,6 +46,7 @@ test("valida cambios de perfil y contraseña", () => {
 test("exige contraseñas robustas para nuevos usuarios", () => {
   assert.throws(() => validate(registerSchema, {
     name: "Nueva lectora",
+    username: "nueva_lectora",
     email: "lectora@example.com",
     password: "demasiado-simple",
     preferences: []
@@ -50,11 +54,34 @@ test("exige contraseñas robustas para nuevos usuarios", () => {
 
   const result = validate(registerSchema, {
     name: "Nueva lectora",
+    username: "nueva_lectora",
     email: "lectora@example.com",
     password: "Lecturas2026!",
     preferences: ["Fantasía"]
   });
   assert.equal(result.email, "lectora@example.com");
+  assert.equal(result.username, "nueva_lectora");
+});
+
+test("normaliza y valida nombres de usuario", () => {
+  const result = validate(registerSchema, {
+    name: "Nueva lectora",
+    username: "  Lectora.2026 ",
+    email: "lectora@example.com",
+    password: "Lecturas2026!",
+    preferences: []
+  });
+  assert.equal(result.username, "lectora.2026");
+
+  for (const username of ["ab", "_lectora", "lectora_", "lectora admin", "lectora@"]) {
+    assert.throws(() => validate(registerSchema, {
+      name: "Nueva lectora",
+      username,
+      email: "lectora@example.com",
+      password: "Lecturas2026!",
+      preferences: []
+    }), /no son válidos/);
+  }
 });
 
 test("rechaza estados y puntuaciones inválidos", () => {

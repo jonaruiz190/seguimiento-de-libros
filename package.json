@@ -2,6 +2,7 @@
   "name": "seguimiento-de-libros",
   "version": "1.0.0",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Aplicación web para descubrir libros y llevar un seguimiento personal de lectura.",
   "type": "module",
   "engines": {

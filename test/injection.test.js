@@ -32,6 +32,28 @@ test("rechaza una inyección SQL en el correo antes de consultar la base", async
   assert.equal(queried, false);
 });
 
+test("rechaza inyección y etiquetas HTML en el nombre de usuario", async () => {
+  let connected = false;
+  const pool = {
+    connect: async () => {
+      connected = true;
+      throw new Error("No debe conectar");
+    }
+  };
+  const response = await request(createApp({ pool, config }))
+    .post("/api/auth/register")
+    .send({
+      name: "Lector",
+      username: "lector<script>alert(1)</script>';--",
+      email: "lector@example.com",
+      password: "Lecturas2026!",
+      preferences: []
+    });
+
+  assert.equal(response.status, 400);
+  assert.equal(connected, false);
+});
+
 test("mantiene los identificadores maliciosos fuera del texto SQL", async () => {
   const payload = "x'; DROP TABLE tracking; --";
   const calls = [];
@@ -74,4 +96,23 @@ test("no expone el archivo .env mediante traversal", async () => {
 
   assert.match(response.headers["content-type"], /text\/html/);
   assert.doesNotMatch(response.text || "", /DATABASE_URL|SPOTIFY_CLIENT_SECRET|NYT_BOOKS_API_KEY/);
+});
+
+test("no publica credenciales de demostración en la documentación", async () => {
+  const readme = await readFile("README.md", "utf8");
+  assert.doesNotMatch(readme, /ana@libros\.com|libros123/);
+});
+
+test("no contiene secretos reales en archivos versionados de configuración", async () => {
+  const files = [".env.example", "render.yaml"];
+  const source = (await Promise.all(files.map((file) => readFile(file, "utf8")))).join("\n");
+  const databaseUrls = [...source.matchAll(/postgres(?:ql)?:\/\/[^\s]+/g)]
+    .map((match) => new URL(match[0]));
+
+  assert.equal(databaseUrls.every((url) =>
+    ["localhost", "database"].includes(url.hostname)
+  ), true);
+  assert.doesNotMatch(source, /(?:ghp|github_pat)_[A-Za-z0-9_]+/);
+  assert.doesNotMatch(source, /SPOTIFY_CLIENT_SECRET=\S+/);
+  assert.doesNotMatch(source, /NYT_BOOKS_API_KEY=\S+/);
 });

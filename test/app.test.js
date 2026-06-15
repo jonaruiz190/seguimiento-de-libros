@@ -57,6 +57,7 @@ test("permite deshabilitar el registro público en producción", async () => {
     .post("/api/auth/register")
     .send({
       name: "Usuario",
+      username: "usuario",
       email: "usuario@example.com",
       password: "Lecturas2026!",
       preferences: []
@@ -87,6 +88,26 @@ test("bloquea mutaciones autenticadas desde otro origen", async () => {
   assert.equal(response.status, 403);
 });
 
+test("bloquea mutaciones autenticadas sin cabecera Origin", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const response = await request(createApp({ pool, config }))
+    .post("/api/tracking")
+    .set("Cookie", "sid=token")
+    .send({});
+
+  assert.equal(response.status, 403);
+});
+
+test("rechaza cuerpos JSON excesivos", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const response = await request(createApp({ pool, config }))
+    .post("/api/auth/login")
+    .set("Content-Type", "application/json")
+    .send(JSON.stringify({ padding: "x".repeat(2_100_000) }));
+
+  assert.equal(response.status, 413);
+});
+
 test("permite mutaciones desde un origen adicional autorizado", async () => {
   const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
   const response = await request(createApp({
@@ -108,11 +129,12 @@ test("registra un usuario y crea una cookie de sesión HttpOnly", async () => {
   const user = {
     id: "22222222-2222-4222-8222-222222222222",
     name: "Lucía Pérez",
+    username: "lucia.perez",
     email: "lucia@example.com"
   };
   const client = {
     query: async (sql) => {
-      if (sql.includes("RETURNING id, name, email")) {
+      if (sql.includes("RETURNING id, name, username, email")) {
         return { rowCount: 1, rows: [user] };
       }
       return { rowCount: 1, rows: [] };
@@ -133,6 +155,7 @@ test("registra un usuario y crea una cookie de sesión HttpOnly", async () => {
     .post("/api/auth/register")
     .send({
       name: user.name,
+      username: user.username,
       email: user.email,
       password: "Lecturas2026!",
       preferences: ["Fantasía"]
@@ -140,9 +163,76 @@ test("registra un usuario y crea una cookie de sesión HttpOnly", async () => {
 
   assert.equal(response.status, 201);
   assert.equal(response.body.user.email, user.email);
+  assert.equal(response.body.user.username, user.username);
   assert.equal("password" in response.body.user, false);
   assert.match(response.headers["set-cookie"][0], /HttpOnly/);
   assert.match(response.headers["set-cookie"][0], /SameSite=Lax/);
+});
+
+test("marca la cookie de sesión como Secure en producción", async () => {
+  const user = {
+    id: "33333333-3333-4333-8333-333333333333",
+    name: "Lector Seguro",
+    username: "lector.seguro",
+    email: "seguro@example.com"
+  };
+  const client = {
+    query: async (sql) => {
+      if (sql.includes("RETURNING id, name, username, email")) {
+        return { rowCount: 1, rows: [user] };
+      }
+      return { rowCount: 1, rows: [] };
+    },
+    release: () => {}
+  };
+  const pool = {
+    connect: async () => client,
+    query: async () => ({ rowCount: 0, rows: [] })
+  };
+  const response = await request(createApp({
+    pool,
+    config: { ...config, isProduction: true }
+  }))
+    .post("/api/auth/register")
+    .send({
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      password: "Lecturas2026!",
+      preferences: []
+    });
+
+  assert.equal(response.status, 201);
+  assert.match(response.headers["set-cookie"][0], /Secure/);
+  assert.match(response.headers["set-cookie"][0], /HttpOnly/);
+});
+
+test("rechaza nombres de usuario duplicados sin exponer detalles de la base", async () => {
+  const duplicate = new Error("duplicate key value violates unique constraint");
+  duplicate.code = "23505";
+  duplicate.constraint = "users_username_lower_unique";
+  const client = {
+    query: async (sql) => {
+      if (sql === "BEGIN" || sql === "ROLLBACK") return { rowCount: 0, rows: [] };
+      throw duplicate;
+    },
+    release: () => {}
+  };
+  const pool = { connect: async () => client };
+
+  const response = await request(createApp({ pool, config }))
+    .post("/api/auth/register")
+    .send({
+      name: "Otra lectora",
+      username: "lucia.perez",
+      email: "otra@example.com",
+      password: "Lecturas2026!",
+      preferences: []
+    });
+
+  assert.equal(response.status, 409);
+  assert.equal(response.body.error, "Ese nombre de usuario ya está en uso.");
+  assert.equal(JSON.stringify(response.body).includes("unique constraint"), false);
 });
 
 test("sirve las portadas locales como archivos estáticos", async () => {

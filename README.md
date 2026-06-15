@@ -27,8 +27,8 @@ Aplicación web multiplataforma para descubrir libros y mantener un seguimiento 
 - Reproductor de Spotify en la barra superior y OAuth opcional.
 - Enlaces públicos de libro para Kindle, Apple Books y Google Books cuando existen.
 - Página actual y proveedor de lectura digital por cada seguimiento.
-- Edición de perfil: nombre, foto local o mediante URL, idioma, preferencias,
-  Spotify y contraseña.
+- Edición de perfil: nombre, nombre de usuario, foto local o mediante URL,
+  idioma, preferencias, Spotify y contraseña.
 - Recuperación de contraseña mediante enlaces de un solo uso.
 - Búsqueda e importación de datos reales desde Open Library.
 - Actualización periódica de metadatos con `npm run catalog:refresh`.
@@ -55,10 +55,8 @@ docker compose up --build
 
 Abre `http://localhost:3000`.
 
-Usuario de demostración:
-
-- Correo: `ana@libros.com`
-- Contraseña: `libros123`
+Para crear datos locales de demostración ejecuta `npm run db:seed`. Esos datos
+son exclusivamente para desarrollo y nunca deben importarse a producción.
 
 Detén los contenedores con:
 
@@ -243,3 +241,15 @@ El usuario de demostración existe únicamente cuando se ejecuta `npm run db:see
 - Las sinopsis se buscan primero en Open Library y luego en Google Books.
 - Spotify permite usar la playlist predeterminada o seleccionar playlists de la
   cuenta vinculada sin copiar enlaces.
+
+## Licencia y marca
+
+El código se distribuye bajo la GNU Affero General Public License v3.0. Consulta
+`LICENSE`. Las modificaciones utilizadas para prestar un servicio por red deben
+ofrecer su código fuente correspondiente bajo los términos de esa licencia.
+
+La licencia no concede derechos sobre el nombre, logotipos o identidad de
+**Seguimiento de Libros**. Consulta `TRADEMARKS.md`.
+
+Los reportes de vulnerabilidades deben seguir `SECURITY.md`. Las contribuciones
+deben seguir `CONTRIBUTING.md`.
