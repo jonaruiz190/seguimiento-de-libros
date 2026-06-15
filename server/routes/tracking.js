@@ -11,7 +11,7 @@ export function createTrackingRouter({ pool }) {
       `SELECT id, book_id AS "bookId", status, rating, comment, format,
               started_at AS "startedAt", finished_at AS "finishedAt",
               reading_provider AS "readingProvider",
-              current_page AS "currentPage"
+              current_page AS "currentPage", updated_at AS "updatedAt"
        FROM tracking
        WHERE user_id = $1 AND archived_at IS NULL
        ORDER BY updated_at DESC`,
@@ -39,7 +39,7 @@ export function createTrackingRouter({ pool }) {
          RETURNING id, book_id AS "bookId", status, rating, comment, format,
                    started_at AS "startedAt", finished_at AS "finishedAt",
                    reading_provider AS "readingProvider",
-                   current_page AS "currentPage"`,
+                   current_page AS "currentPage", updated_at AS "updatedAt"`,
         [
           request.user.id,
           item.bookId,
@@ -78,7 +78,7 @@ export function createTrackingRouter({ pool }) {
        RETURNING id, book_id AS "bookId", status, rating, comment, format,
                  started_at AS "startedAt", finished_at AS "finishedAt",
                  reading_provider AS "readingProvider",
-                 current_page AS "currentPage"`,
+                 current_page AS "currentPage", updated_at AS "updatedAt"`,
       [
         item.status,
         item.rating,

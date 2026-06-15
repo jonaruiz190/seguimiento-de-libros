@@ -11,11 +11,14 @@ const state = {
   avatarDataUrl: null,
   category: "Todos",
   trackingSearch: "",
-  statusFilter: "all"
+  statusFilter: "all",
+  trackingSort: "updated-desc",
+  spotifyPlaylistsLoaded: false
 };
 let pendingRequests = 0;
 
-const spotifyEmbedUrl = "https://open.spotify.com/embed/playlist/37i9dQZF1DWZwtERXCS82H?utm_source=generator";
+const spotifyDefaultUrl = "https://open.spotify.com/playlist/37i9dQZF1DWZwtERXCS82H";
+const spotifyEmbedUrl = `${spotifyDefaultUrl.replace("/playlist/", "/embed/playlist/")}?utm_source=generator`;
 const loginQuotes = [
   ["Un lector vive mil vidas antes de morir.", "George R. R. Martin"],
   ["No todos los que vagan están perdidos.", "J. R. R. Tolkien"],
@@ -38,7 +41,12 @@ async function init() {
   showResetPasswordIfNeeded();
 
   try {
-    const session = await api("/api/auth/me", { allowUnauthorized: true });
+    const [runtime, session] = await Promise.all([
+      api("/api/runtime"),
+      api("/api/auth/me", { allowUnauthorized: true })
+    ]);
+    $("#demo-hint").classList.toggle("is-hidden", !runtime.demoMode);
+    $("#open-register-button").classList.toggle("is-hidden", !runtime.registrationEnabled);
     if (session) await enterApp(session.user);
   } catch (error) {
     $("#login-error").textContent = "No se pudo conectar con el servidor.";
@@ -116,12 +124,13 @@ async function resetPassword(event) {
 
 function bindEvents() {
   $("#login-form").addEventListener("submit", handleLogin);
-  $("#auth-notice-close").addEventListener("click", closeAuthNotice);
-  $("#auth-notice .auth-notice__backdrop").addEventListener("click", closeAuthNotice);
   $("#register-form").addEventListener("submit", handleRegister);
   $("#open-register-button").addEventListener("click", openRegisterModal);
   $("#logout-button").addEventListener("click", logout);
   $("#profile-button").addEventListener("click", openProfileModal);
+  $("#help-button").addEventListener("click", openHelpModal);
+  $("#support-button").addEventListener("click", openSupportModal);
+  $("#support-form").addEventListener("submit", sendSupportReport);
   $("#profile-form").addEventListener("submit", saveProfile);
   $("#user-button").addEventListener("click", toggleUserMenu);
   $("#user-avatar-image").addEventListener("error", () => {
@@ -137,6 +146,10 @@ function bindEvents() {
     state.statusFilter = event.target.value;
     renderTracking();
   });
+  $("#tracking-sort").addEventListener("change", (event) => {
+    state.trackingSort = event.target.value;
+    renderTracking();
+  });
   $("#add-book-button").addEventListener("click", exploreBooks);
   $("#refresh-tracking").addEventListener("click", () => refreshTracking());
   $("#catalog-button").addEventListener("click", openCatalogModal);
@@ -144,9 +157,9 @@ function bindEvents() {
   $("#spotify-button").addEventListener("click", toggleSpotifyPanel);
   $("#close-spotify").addEventListener("click", closeSpotifyPanel);
   $("#spotify-connect").addEventListener("click", connectSpotify);
+  $("#spotify-disconnect").addEventListener("click", disconnectSpotify);
   $("#load-spotify-playlists").addEventListener("click", loadSpotifyPlaylists);
   $("#spotify-playlist-select").addEventListener("change", selectSpotifyPlaylist);
-  $("#spotify-search-form").addEventListener("submit", searchSpotify);
   $("#tracking-form").addEventListener("submit", saveTracking);
   $("#tracking-status").addEventListener("change", applyDateDefaults);
   $("#tracking-format").addEventListener("change", applyTrackingFieldRules);
@@ -159,6 +172,7 @@ function bindEvents() {
   $("#clear-dashboard-filters").addEventListener("click", clearDashboardFilters);
   $("#ranking-filters").addEventListener("submit", loadRanking);
   $("#clear-ranking-filters").addEventListener("click", clearRankingFilters);
+  $("#ranking-source").addEventListener("change", updateRankingFilterAvailability);
   $("#profile-avatar-file").addEventListener("change", loadLocalAvatar);
   $("#profile-avatar").addEventListener("input", updateAvatarPreview);
   $("#delete-profile-button").addEventListener("click", deleteProfile);
@@ -202,6 +216,12 @@ function bindEvents() {
   $$("[data-close-forgot]").forEach((element) => {
     element.addEventListener("click", closeForgotPasswordModal);
   });
+  $$("[data-close-help]").forEach((element) => {
+    element.addEventListener("click", closeHelpModal);
+  });
+  $$("[data-close-support]").forEach((element) => {
+    element.addEventListener("click", closeSupportModal);
+  });
   $$("input[name='preference']").forEach((checkbox) => {
     checkbox.addEventListener("change", enforcePreferenceLimit);
   });
@@ -214,6 +234,8 @@ function bindEvents() {
       closeProfileModal();
       closeCatalogModal();
       closeForgotPasswordModal();
+      closeHelpModal();
+      closeSupportModal();
       closeSpotifyPanel();
     }
   });
@@ -353,8 +375,7 @@ async function handleLogin(event) {
     showAuthNotice({
       type: "success",
       title: "Inicio de sesión exitoso",
-      message: `Bienvenido, ${result.user.name}. Tu biblioteca está lista.`,
-      autoClose: true
+      message: `Bienvenido, ${result.user.name}. Tu biblioteca está lista.`
     });
   } catch (error) {
     errorElement.textContent = error.message;
@@ -376,7 +397,7 @@ async function enterApp(user) {
     api("/api/books"),
     api("/api/tracking"),
     api("/api/integrations/status"),
-    api("/api/catalog/categories")
+    api("/api/catalog/categories?capabilities=2")
   ]);
   state.books = booksResult.books;
   state.recommendations = booksResult.books;
@@ -420,6 +441,7 @@ function resetToLogin() {
   state.tracking = [];
   state.dashboard = null;
   state.integrations = null;
+  state.spotifyPlaylistsLoaded = false;
   $("#app").classList.add("is-hidden");
   $("#login-screen").classList.remove("is-hidden");
   $("#user-dropdown").classList.add("is-hidden");
@@ -455,7 +477,12 @@ function renderUserIdentity() {
 function toggleSpotifyPanel() {
   const panel = $("#spotify-panel");
   const opening = panel.classList.contains("is-hidden");
-  if (opening) ensureSpotifyPlayback();
+  if (opening) {
+    ensureSpotifyPlayback();
+    if (state.integrations?.spotify?.connected && !state.spotifyPlaylistsLoaded) {
+      loadSpotifyPlaylists();
+    }
+  }
   panel.classList.toggle("is-hidden", !opening);
   $("#spotify-button").setAttribute("aria-expanded", String(opening));
 }
@@ -467,7 +494,7 @@ function closeSpotifyPanel() {
 
 function ensureSpotifyPlayback() {
   const frame = $("#spotify-frame");
-  if (!frame.src) frame.src = spotifyEmbedFromUrl(
+  if (!frame.src) updateSpotifyPlaybackSource(
     state.user?.spotifyPlaylistUrl || state.integrations?.spotify?.playlistUrl
   );
 }
@@ -499,15 +526,15 @@ function renderIntegrationStatus() {
     ? "Reconectar Spotify"
     : "Conectar mi cuenta de Spotify";
   $("#profile-spotify-connect").disabled = false;
-  $("#spotify-connect").classList.toggle("is-hidden", true);
-  $("#spotify-search-form").classList.toggle("is-hidden", !spotify?.connected);
+  $("#spotify-connect").classList.toggle("is-hidden", Boolean(spotify?.connected));
+  $("#spotify-disconnect").classList.toggle("is-hidden", !spotify?.connected);
   const playlist = state.user?.spotifyPlaylistUrl || spotify?.playlistUrl || "";
   $("#spotify-playlist-select").innerHTML = `
     <option value="">Playlist predeterminada</option>
     ${playlist ? `<option value="${escapeHtml(playlist)}" selected>Mi playlist guardada</option>` : ""}
   `;
   $("#load-spotify-playlists").disabled = !spotify?.connected;
-  $("#spotify-frame").src = spotifyEmbedFromUrl(playlist);
+  updateSpotifyPlaybackSource(playlist);
 }
 
 function connectSpotify() {
@@ -516,6 +543,28 @@ function connectSpotify() {
     return;
   }
   window.location.assign("/api/integrations/spotify/connect");
+}
+
+async function disconnectSpotify() {
+  if (!window.confirm("¿Desconectar Spotify de esta aplicación?")) return;
+  const button = $("#spotify-disconnect");
+  button.disabled = true;
+  try {
+    await api("/api/integrations/spotify", {
+      method: "DELETE",
+      loadingText: "Desconectando Spotify..."
+    });
+    state.user.spotifyPlaylistUrl = null;
+    state.spotifyPlaylistsLoaded = false;
+    state.integrations.spotify.connected = false;
+    state.integrations.spotify.playlistUrl = null;
+    renderIntegrationStatus();
+    showToast("Spotify se desconectó de la aplicación.");
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function loadSpotifyPlaylists() {
@@ -534,6 +583,7 @@ async function loadSpotifyPlaylists() {
         </option>
       `).join("")}
     `;
+    state.spotifyPlaylistsLoaded = true;
   } catch (error) {
     showToast(error.message);
   } finally {
@@ -550,40 +600,10 @@ async function selectSpotifyPlaylist(event) {
       body: JSON.stringify(profilePayload({ spotifyPlaylistUrl: playlistUrl }))
     });
     state.user = result.user;
-    $("#spotify-frame").src = spotifyEmbedFromUrl(playlistUrl);
+    updateSpotifyPlaybackSource(playlistUrl);
     showToast(playlistUrl ? "Playlist personal seleccionada." : "Playlist predeterminada seleccionada.");
   } catch (error) {
     showToast(error.message);
-  }
-}
-
-async function searchSpotify(event) {
-  event.preventDefault();
-  const query = $("#spotify-search-query").value.trim();
-  if (!query) return;
-  const container = $("#spotify-search-results");
-  container.innerHTML = '<p class="field-hint">Buscando en Spotify...</p>';
-  try {
-    const params = new URLSearchParams({
-      q: query,
-      type: $("#spotify-search-type").value
-    });
-    const result = await api(`/api/integrations/spotify/search?${params}`);
-    container.innerHTML = result.items.length ? result.items.map((item) => `
-      <button class="spotify-result" type="button"
-        data-spotify-url="${escapeHtml(item.url)}">
-        <img src="${safeImageUrl(item.image)}" alt="">
-        <span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.subtitle)}</small></span>
-      </button>
-    `).join("") : '<p class="field-hint">No se encontraron resultados.</p>';
-    $$("[data-spotify-url]", container).forEach((button) => {
-      button.addEventListener("click", () => {
-        $("#spotify-frame").src = spotifyEmbedFromUrl(button.dataset.spotifyUrl);
-      });
-    });
-    attachImageFallbacks(container);
-  } catch (error) {
-    container.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -593,6 +613,14 @@ function spotifyEmbedFromUrl(url) {
   return match
     ? `https://open.spotify.com/embed/${match[1]}/${match[2]}?utm_source=generator`
     : spotifyEmbedUrl;
+}
+
+function updateSpotifyPlaybackSource(url) {
+  const spotifyUrl = /^https:\/\/open\.spotify\.com\/(playlist|track)\/[A-Za-z0-9]+/.test(
+    String(url || "")
+  ) ? String(url) : spotifyDefaultUrl;
+  $("#spotify-frame").src = spotifyEmbedFromUrl(spotifyUrl);
+  $("#spotify-open-external").href = spotifyUrl;
 }
 
 function showSpotifyCallbackMessage() {
@@ -899,7 +927,9 @@ function restoreBodyScroll() {
       && $("#profile-modal").classList.contains("is-hidden")
       && $("#catalog-modal").classList.contains("is-hidden")
       && $("#forgot-password-modal").classList.contains("is-hidden")
-      && $("#reset-password-modal").classList.contains("is-hidden")) {
+      && $("#reset-password-modal").classList.contains("is-hidden")
+      && $("#help-modal").classList.contains("is-hidden")
+      && $("#support-modal").classList.contains("is-hidden")) {
     document.body.style.overflow = "";
   }
 }
@@ -961,7 +991,6 @@ function openProfileModal() {
   updateAvatarPreview();
   $("#profile-language").value = state.user.language || "es";
   $("#profile-authors").value = (state.user.favoriteAuthors || []).join("\n");
-  $("#profile-playlist").value = state.user.spotifyPlaylistUrl || "";
   $$("input[name='profile-preference']").forEach((input) => {
     input.checked = state.user.preferences.includes(input.value);
   });
@@ -974,6 +1003,62 @@ function openProfileModal() {
 function closeProfileModal() {
   $("#profile-modal").classList.add("is-hidden");
   restoreBodyScroll();
+}
+
+function openHelpModal() {
+  $("#user-dropdown").classList.add("is-hidden");
+  $("#user-button").setAttribute("aria-expanded", "false");
+  $("#help-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+}
+
+function closeHelpModal() {
+  $("#help-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+function openSupportModal() {
+  $("#user-dropdown").classList.add("is-hidden");
+  $("#user-button").setAttribute("aria-expanded", "false");
+  $("#support-form").reset();
+  $("#support-message").textContent = "";
+  $("#support-modal").classList.remove("is-hidden");
+  document.body.style.overflow = "hidden";
+  $("#support-report-title").focus();
+}
+
+function closeSupportModal() {
+  $("#support-modal").classList.add("is-hidden");
+  restoreBodyScroll();
+}
+
+async function sendSupportReport(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector("button[type='submit']");
+  const message = $("#support-message");
+  button.disabled = true;
+  message.textContent = "";
+  try {
+    const result = await api("/api/support/reports", {
+      method: "POST",
+      loadingText: "Enviando reporte...",
+      body: JSON.stringify({
+        category: $("#support-category").value,
+        title: $("#support-report-title").value.trim(),
+        description: $("#support-description").value.trim(),
+        steps: $("#support-steps").value.trim(),
+        page: `${window.location.pathname}${window.location.search}`
+      })
+    });
+    message.textContent = `Reporte #${result.report.number} enviado correctamente.`;
+    form.reset();
+    setTimeout(closeSupportModal, 2500);
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function saveProfile(event) {
@@ -1017,9 +1102,7 @@ function profilePayload(overrides = {}) {
     favoriteAuthors: editing
       ? $("#profile-authors").value.split("\n").map((author) => author.trim()).filter(Boolean)
       : state.user.favoriteAuthors || [],
-    spotifyPlaylistUrl: editing
-      ? $("#profile-playlist").value.trim() || null
-      : state.user.spotifyPlaylistUrl || null,
+    spotifyPlaylistUrl: state.user.spotifyPlaylistUrl || null,
     currentPassword: editing ? $("#profile-current-password").value : "",
     newPassword: editing ? $("#profile-new-password").value : "",
     ...overrides
@@ -1077,6 +1160,7 @@ function populateCategoryControls() {
     `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
   ).join("");
   $("#ranking-category").innerHTML = `<option value="">Todos los géneros</option>${options}`;
+  populateRankingYears();
   $("#profile-preferences").innerHTML = state.categories.map((category) => `
     <label><input type="checkbox" name="profile-preference"
       value="${escapeHtml(category)}"> ${escapeHtml(category)}</label>
@@ -1098,8 +1182,34 @@ function renderRankingCapabilities() {
   if (!nytOption) return;
   nytOption.disabled = !state.capabilities.nytBestsellers;
   nytOption.textContent = state.capabilities.nytBestsellers
-    ? "Best sellers oficiales por año"
+    ? "Best sellers oficiales"
     : "Best sellers oficiales (requiere API key)";
+  updateRankingFilterAvailability();
+}
+
+function populateRankingYears() {
+  const currentYear = new Date().getFullYear();
+  const options = [];
+  for (let year = currentYear; year >= 1931; year -= 1) {
+    options.push(`<option value="${year}">${year}</option>`);
+  }
+  $("#ranking-year").innerHTML = `<option value="">Todos los años</option>${options.join("")}`;
+}
+
+function updateRankingFilterAvailability() {
+  const isNyt = $("#ranking-source").value === "nyt";
+  const rating = $("#ranking-rating");
+  const category = $("#ranking-category");
+  rating.disabled = isNyt;
+  category.disabled = isNyt;
+  if (isNyt) rating.value = "0";
+  if (isNyt) category.value = "";
+  $("#ranking-year").options[0].textContent = isNyt
+    ? "Histórico disponible"
+    : "Todos los años";
+  $("#ranking-note").textContent = isNyt
+    ? "NYT no ofrece géneros compatibles ni puntuaciones. Puedes filtrar por autor y año."
+    : "Este ranking no representa una lista oficial de best sellers.";
 }
 
 async function searchCatalog(event) {
@@ -1253,7 +1363,7 @@ function renderTracking() {
       .includes(state.trackingSearch);
     const matchesStatus = state.statusFilter === "all" || item.status === state.statusFilter;
     return matchesSearch && matchesStatus;
-  });
+  }).sort(compareTrackingItems);
 
   $("#tracking-table-body").innerHTML = filtered.map((item) => {
     const book = findBook(item.bookId);
@@ -1312,8 +1422,15 @@ async function deleteTracking(id) {
   try {
     await api(`/api/tracking/${id}`, { method: "DELETE" });
     state.tracking = state.tracking.filter((entry) => entry.id !== id);
+    state.recommendations.forEach((recommendation) => {
+      if (recommendation.source === book.catalogSource
+          && recommendation.sourceId === book.sourceId) {
+        recommendation.imported = false;
+      }
+    });
     state.dashboard = null;
     renderTracking();
+    renderBooks();
     updateStats();
     showToast("Libro retirado del seguimiento. El historial se conservó.");
   } catch (error) {
@@ -1326,6 +1443,31 @@ function updateStats() {
   $("#stat-read").textContent = state.tracking.filter((item) => item.status === "Leído").length;
   $("#stat-next").textContent = state.tracking
     .filter((item) => item.status === "Próximo a leer").length;
+}
+
+function compareTrackingItems(left, right) {
+  const leftBook = findBook(left.bookId) || {};
+  const rightBook = findBook(right.bookId) || {};
+  const text = (a, b) => String(a || "").localeCompare(String(b || ""), "es", {
+    sensitivity: "base"
+  });
+  const statusOrder = ["Leyendo", "En pausa", "Próximo a leer", "Leído", "Abandonado"];
+  switch (state.trackingSort) {
+    case "title-asc":
+      return text(leftBook.title, rightBook.title);
+    case "rating-desc":
+      return Number(right.rating || 0) - Number(left.rating || 0)
+        || text(leftBook.title, rightBook.title);
+    case "status-asc":
+      return statusOrder.indexOf(left.status) - statusOrder.indexOf(right.status)
+        || text(leftBook.title, rightBook.title);
+    case "format-asc":
+      return text(left.format, right.format) || text(leftBook.title, rightBook.title);
+    case "author-asc":
+      return text(leftBook.author, rightBook.author) || text(leftBook.title, rightBook.title);
+    default:
+      return new Date(right.updatedAt || 0) - new Date(left.updatedAt || 0);
+  }
 }
 
 function applyDateDefaults() {
@@ -1407,7 +1549,11 @@ function renderDashboard() {
   const summary = dashboard.summary;
 
   $("#metric-read-books").textContent = summary.readBooks;
-  $("#metric-reading-books").textContent = `${summary.readingBooks} leyendo actualmente`;
+  $("#metric-total-books").textContent = `${summary.totalBooks} registros en estos filtros`;
+  $("#metric-reading-books").textContent = summary.readingBooks;
+  $("#metric-reading-detail").textContent =
+    `${summary.nextBooks} próximos · ${summary.pausedBooks} en pausa · ${summary.droppedBooks} abandonados`;
+  $("#metric-chapters").textContent = numberFormatter.format(summary.chaptersRead);
   $("#metric-total-days").textContent = `${numberFormatter.format(summary.totalDays)} días`;
   $("#metric-average-days").textContent = summary.averageDays === null
     ? "—"
@@ -1509,7 +1655,7 @@ function renderMonthlyChart(monthly) {
 function renderRankingChart(selector, rows) {
   const container = $(selector);
   if (!rows.length) {
-    container.innerHTML = '<p class="dashboard-empty">Finaliza libros para ver esta estadística.</p>';
+    container.innerHTML = '<p class="dashboard-empty">No hay datos para estos filtros.</p>';
     return;
   }
 
@@ -1530,7 +1676,7 @@ function renderDashboardBooks(books) {
   if (!books.length) {
     container.innerHTML = `
       <p class="dashboard-empty">
-        Cuando marques un libro como leído, su duración y tiempo aparecerán aquí.
+        No hay lecturas que coincidan con estos filtros.
       </p>
     `;
     return;
@@ -1538,7 +1684,7 @@ function renderDashboardBooks(books) {
 
   container.innerHTML = `
     <div class="dashboard-book-row dashboard-book-row--header">
-      <span>Libro</span><span>Inicio</span><span>Final</span><span>Duración</span><span>App</span>
+      <span>Libro</span><span>Estado</span><span>Progreso</span><span>Duración</span><span>App</span>
     </div>
     ${books.map((book) => `
       <div class="dashboard-book-row">
@@ -1549,8 +1695,10 @@ function renderDashboardBooks(books) {
             <span>${escapeHtml(book.author)}</span>
           </div>
         </div>
-        <span>${formatDate(book.startedAt)}</span>
-        <span>${formatDate(book.finishedAt)}</span>
+        <span>${escapeHtml(book.status)}</span>
+        <span>${book.currentPage === null
+          ? "Sin registrar"
+          : `${numberFormatter.format(book.currentPage)} ${book.progressUnit === "chapter" ? "cap." : "pág."}`}</span>
         <span>${book.durationDays === null ? "Sin fechas" : `${book.durationDays} días`}</span>
         <span>${escapeHtml(book.readingProvider || book.format)}</span>
       </div>
@@ -1581,7 +1729,7 @@ async function loadRanking(event) {
     state.ranking = result.books;
     renderRanking();
     $("#ranking-note").textContent = result.officialBestseller
-      ? `Ranking oficial: ${result.source}.`
+      ? `Ranking oficial: ${result.source}; ${result.rankingType}.`
       : `Fuente: ${result.source}; ordenado por ${result.rankingType}. No es una lista oficial de best sellers.`;
   } catch (error) {
     loading.textContent = error.message;
@@ -1590,6 +1738,7 @@ async function loadRanking(event) {
 
 function clearRankingFilters() {
   $("#ranking-filters").reset();
+  updateRankingFilterAvailability();
   state.ranking = [];
   loadRanking();
 }
@@ -1615,7 +1764,7 @@ function renderRanking() {
         <small>${book.source === "nyt"
           ? escapeHtml(book.categories[0] || "Best seller")
           : `${ratingStars(book.rating)} ${formatDecimal(book.rating)}
-            · ${numberFormatter.format(book.readersCount)} lectores`}</small>
+            · ${numberFormatter.format(book.readersCount)} registros en Open Library`}</small>
       </div>
     </article>
   `).join("");
@@ -1704,6 +1853,8 @@ function ratingStars(rating) {
 function statusClass(status) {
   if (status === "Próximo a leer") return "status-pill--next";
   if (status === "Leído") return "status-pill--read";
+  if (status === "En pausa") return "status-pill--paused";
+  if (status === "Abandonado") return "status-pill--dropped";
   return "";
 }
 
@@ -1772,7 +1923,7 @@ function showToast(message) {
 }
 
 let authNoticeTimer;
-function showAuthNotice({ type, title, message, autoClose = false }) {
+function showAuthNotice({ type, title, message }) {
   const notice = $("#auth-notice");
   clearTimeout(authNoticeTimer);
   notice.classList.remove("is-hidden", "auth-notice--success", "auth-notice--error");
@@ -1780,9 +1931,7 @@ function showAuthNotice({ type, title, message, autoClose = false }) {
   $("#auth-notice-title").textContent = title;
   $("#auth-notice-message").textContent = message;
   $("#auth-notice-icon").textContent = type === "success" ? "✓" : "!";
-  $("#auth-notice-close").textContent = type === "success" ? "Continuar" : "Entendido";
-  if (!autoClose) $("#auth-notice-close").focus();
-  if (autoClose) authNoticeTimer = setTimeout(closeAuthNotice, 2200);
+  authNoticeTimer = setTimeout(closeAuthNotice, 2500);
 }
 
 function closeAuthNotice() {

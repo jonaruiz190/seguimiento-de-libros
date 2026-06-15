@@ -19,7 +19,7 @@ export const registerSchema = z.object({
 
 export const trackingSchema = z.object({
   bookId: z.string().trim().min(1).max(100),
-  status: z.enum(["Leyendo", "Próximo a leer", "Leído"]),
+  status: z.enum(["Leyendo", "Próximo a leer", "En pausa", "Abandonado", "Leído"]),
   rating: z.number().int().min(0).max(5),
   comment: z.string().trim().max(2000),
   format: z.enum(["Físico", "Digital", "Ambos"]),
@@ -93,7 +93,7 @@ export const rankingSchema = z.object({
   author: z.string().trim().max(180).optional(),
   category: z.string().trim().max(100).optional(),
   minRating: z.coerce.number().min(0).max(5).default(0),
-  year: z.coerce.number().int().min(0).max(3000).optional(),
+  year: z.coerce.number().int().min(1931).max(new Date().getFullYear()).optional(),
   language: z.enum(["es", "en", "fr", "de", "it", "pt"]).optional()
 }).strict();
 
@@ -115,11 +115,6 @@ export const resetPasswordSchema = z.object({
   password: strongPassword
 }).strict();
 
-export const spotifySearchSchema = z.object({
-  q: z.string().trim().min(2).max(100),
-  type: z.enum(["playlist", "track"]).default("playlist")
-}).strict();
-
 export const dashboardFilterSchema = z.object({
   from: z.iso.date().optional(),
   to: z.iso.date().optional(),
@@ -127,7 +122,9 @@ export const dashboardFilterSchema = z.object({
   provider: z.enum([
     "Kindle", "Apple Books", "Google Books", "Webtoons", "Otro"
   ]).optional(),
-  status: z.enum(["Leyendo", "Próximo a leer", "Leído"]).optional()
+  status: z.enum([
+    "Leyendo", "Próximo a leer", "En pausa", "Abandonado", "Leído"
+  ]).optional()
 }).strict().superRefine((item, context) => {
   if (item.from && item.to && item.to < item.from) {
     context.addIssue({
@@ -137,6 +134,14 @@ export const dashboardFilterSchema = z.object({
     });
   }
 });
+
+export const supportReportSchema = z.object({
+  category: z.enum(["Error", "Sugerencia", "Cuenta", "Otro"]),
+  title: z.string().trim().min(5).max(120),
+  description: z.string().trim().min(20).max(5000),
+  steps: z.string().trim().max(3000).optional().default(""),
+  page: z.string().trim().max(500).optional().default("")
+}).strict();
 
 export function validate(schema, input) {
   const result = schema.safeParse(input);

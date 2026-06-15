@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/styles.css?v=20260614-3">
 </head>
 <body>
   <div id="login-screen" class="login-screen">
@@ -35,7 +35,9 @@
         <button id="open-register-button" class="button button--secondary button--full" type="button">
           Crear una cuenta
         </button>
-        <p class="demo-hint">Prueba: <strong>ana@libros.com</strong> / <strong>libros123</strong></p>
+        <p id="demo-hint" class="demo-hint is-hidden">
+          Prueba: <strong>ana@libros.com</strong> / <strong>libros123</strong>
+        </p>
       </form>
     </section>
     <aside class="login-art" aria-hidden="true">
@@ -74,6 +76,8 @@
           </button>
           <div id="user-dropdown" class="user-dropdown is-hidden">
             <button id="profile-button" type="button">Editar perfil</button>
+            <button id="help-button" type="button">Ayuda y preguntas frecuentes</button>
+            <button id="support-button" type="button">Contactar con soporte</button>
             <button id="logout-button" type="button">Cerrar sesión</button>
           </div>
         </div>
@@ -104,23 +108,24 @@
         <button id="load-spotify-playlists" class="button button--secondary" type="button">
           Ver mis playlists
         </button>
+        <a id="spotify-open-external" class="button button--secondary"
+          href="https://open.spotify.com/playlist/37i9dQZF1DWZwtERXCS82H"
+          target="_blank" rel="noopener noreferrer">
+          Abrir reproducción completa en Spotify
+        </a>
+        <p class="spotify-mobile-hint">
+          En Safari móvil, este botón abre la playlist seleccionada en Spotify.
+        </p>
       </div>
       <div class="spotify-panel__connection">
         <p id="spotify-status">Puedes reproducir la lista sin conectar tu cuenta.</p>
         <button id="spotify-connect" class="button button--secondary" type="button">
           Conectar mi Spotify
         </button>
+        <button id="spotify-disconnect" class="button button--secondary is-hidden" type="button">
+          Desconectar Spotify
+        </button>
       </div>
-      <form id="spotify-search-form" class="spotify-search">
-        <input id="spotify-search-query" type="search" minlength="2"
-          placeholder="Buscar música o playlists">
-        <select id="spotify-search-type">
-          <option value="playlist">Playlists</option>
-          <option value="track">Canciones</option>
-        </select>
-        <button class="button button--primary" type="submit">Buscar</button>
-      </form>
-      <div id="spotify-search-results" class="spotify-search-results"></div>
     </aside>
 
     <main>
@@ -202,7 +207,17 @@
             <option value="all">Todos los estados</option>
             <option value="Leyendo">Leyendo</option>
             <option value="Próximo a leer">Próximo a leer</option>
+            <option value="En pausa">En pausa</option>
+            <option value="Abandonado">Abandonado</option>
             <option value="Leído">Leído</option>
+          </select>
+          <select id="tracking-sort" aria-label="Ordenar seguimiento">
+            <option value="updated-desc">Modificados recientemente</option>
+            <option value="title-asc">Nombre A-Z</option>
+            <option value="rating-desc">Mayor puntuación</option>
+            <option value="status-asc">Estado</option>
+            <option value="format-asc">Formato</option>
+            <option value="author-asc">Autor A-Z</option>
           </select>
         </div>
 
@@ -241,7 +256,8 @@
           <label>Estado
             <select id="dashboard-status">
               <option value="">Todos</option><option>Leyendo</option>
-              <option>Próximo a leer</option><option>Leído</option>
+              <option>Próximo a leer</option><option>En pausa</option>
+              <option>Abandonado</option><option>Leído</option>
             </select>
           </label>
           <label>Formato
@@ -269,7 +285,17 @@
             <article class="metric-card metric-card--featured">
               <span>Libros leídos</span>
               <strong id="metric-read-books">0</strong>
-              <small id="metric-reading-books">0 leyendo actualmente</small>
+              <small id="metric-total-books">0 registros en estos filtros</small>
+            </article>
+            <article class="metric-card">
+              <span>Leyendo ahora</span>
+              <strong id="metric-reading-books">0</strong>
+              <small id="metric-reading-detail">Sin lecturas activas</small>
+            </article>
+            <article class="metric-card">
+              <span>Capítulos leídos</span>
+              <strong id="metric-chapters">0</strong>
+              <small>Progreso registrado en manga, manhwa y similares</small>
             </article>
             <article class="metric-card">
               <span>Tiempo total</span>
@@ -289,12 +315,12 @@
             <article class="metric-card">
               <span>Género principal</span>
               <strong id="metric-genre" class="metric-card__text">—</strong>
-              <small>Según libros finalizados</small>
+              <small>Según las lecturas filtradas</small>
             </article>
             <article class="metric-card">
               <span>Autor más leído</span>
               <strong id="metric-author" class="metric-card__text">—</strong>
-              <small>Según libros finalizados</small>
+              <small>Según las lecturas filtradas</small>
             </article>
           </div>
 
@@ -303,7 +329,7 @@
               <div class="panel-heading">
                 <div>
                   <p class="eyebrow">Últimos 12 meses</p>
-                  <h2>Libros terminados</h2>
+                  <h2>Actividad de lectura</h2>
                 </div>
               </div>
               <div id="monthly-chart" class="monthly-chart"></div>
@@ -313,7 +339,7 @@
               <div class="panel-heading">
                 <div>
                   <p class="eyebrow">Preferencias reales</p>
-                  <h2>Géneros más leídos</h2>
+                  <h2>Géneros del periodo</h2>
                 </div>
               </div>
               <div id="genre-chart" class="ranking-chart"></div>
@@ -323,7 +349,7 @@
               <div class="panel-heading">
                 <div>
                   <p class="eyebrow">Autores recurrentes</p>
-                  <h2>Autores más leídos</h2>
+                  <h2>Autores del periodo</h2>
                 </div>
               </div>
               <div id="author-chart" class="ranking-chart"></div>
@@ -371,19 +397,36 @@
           </div>
         </div>
         <form id="ranking-filters" class="ranking-filters">
-          <select id="ranking-source">
-            <option value="openlibrary">Popularidad del catálogo</option>
-            <option value="nyt">Best sellers oficiales por año</option>
-          </select>
-          <input id="ranking-author" type="search" placeholder="Filtrar por autor">
-          <select id="ranking-category"><option value="">Todos los géneros</option></select>
-          <select id="ranking-rating">
-            <option value="0">Cualquier rating</option>
-            <option value="3">3+ estrellas</option>
-            <option value="4">4+ estrellas</option>
-            <option value="4.5">4.5+ estrellas</option>
-          </select>
-          <input id="ranking-year" type="number" min="0" max="3000" placeholder="Año">
+          <label class="filter-field">
+            <span>Fuente</span>
+            <select id="ranking-source">
+              <option value="openlibrary">Popularidad del catálogo</option>
+              <option value="nyt">Best sellers oficiales</option>
+            </select>
+          </label>
+          <label class="filter-field">
+            <span>Autor</span>
+            <input id="ranking-author" type="search" placeholder="Nombre del autor">
+          </label>
+          <label class="filter-field">
+            <span>Género</span>
+            <select id="ranking-category"><option value="">Todos los géneros</option></select>
+          </label>
+          <label class="filter-field">
+            <span>Puntuación</span>
+            <select id="ranking-rating">
+              <option value="0">Cualquier rating</option>
+              <option value="3">3+ estrellas</option>
+              <option value="4">4+ estrellas</option>
+              <option value="4.5">4.5+ estrellas</option>
+            </select>
+          </label>
+          <label class="filter-field">
+            <span>Año</span>
+            <select id="ranking-year">
+              <option value="">Todos los años</option>
+            </select>
+          </label>
           <button class="button button--primary" type="submit">Aplicar filtros</button>
           <button id="clear-ranking-filters" class="button button--secondary" type="button">
             Limpiar
@@ -427,6 +470,8 @@
           <select id="tracking-status" required>
             <option>Leyendo</option>
             <option>Próximo a leer</option>
+            <option>En pausa</option>
+            <option>Abandonado</option>
             <option>Leído</option>
           </select>
         </label>
@@ -565,9 +610,9 @@
       <label for="profile-authors">Autores favoritos</label>
       <textarea id="profile-authors" rows="3"
         placeholder="Un autor por línea, por ejemplo:&#10;Jane Austen&#10;Brandon Sanderson"></textarea>
-      <label for="profile-playlist">Playlist personal de Spotify</label>
-      <input id="profile-playlist" type="url" maxlength="2000"
-        placeholder="https://open.spotify.com/playlist/...">
+      <p class="field-hint">
+        Conecta Spotify para elegir tus playlists desde la app, sin copiar enlaces.
+      </p>
       <button id="profile-spotify-connect" class="button button--secondary" type="button">
         Conectar mi cuenta de Spotify
       </button>
@@ -620,16 +665,72 @@
     </form>
   </div>
 
-  <div id="auth-notice" class="auth-notice is-hidden" role="dialog" aria-modal="true"
+  <div id="help-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="help-title">
+    <div class="modal__backdrop" data-close-help></div>
+    <article class="modal__content modal__content--form help-content">
+      <button class="modal__close" type="button" data-close-help aria-label="Cerrar">×</button>
+      <p class="eyebrow">Centro de ayuda</p>
+      <h2 id="help-title">Ayuda y preguntas frecuentes</h2>
+      <details open>
+        <summary>¿Cómo agrego un libro?</summary>
+        <p>Busca el libro en Inicio, abre su vista previa y selecciona la opción para añadirlo.</p>
+      </details>
+      <details>
+        <summary>¿Cómo conecto Spotify?</summary>
+        <p>Desde Editar perfil, conecta tu cuenta. Luego podrás elegir una playlist desde Escuchar.</p>
+      </details>
+      <details>
+        <summary>¿Qué ocurre al quitar un seguimiento?</summary>
+        <p>Desaparece de tu lista activa, pero las estadísticas ya registradas se conservan.</p>
+      </details>
+      <details>
+        <summary>¿Cómo se calculan los días?</summary>
+        <p>Se usa el intervalo entre la fecha de inicio y la fecha de finalización, incluyendo ambos días.</p>
+      </details>
+    </article>
+  </div>
+
+  <div id="support-modal" class="modal is-hidden" role="dialog" aria-modal="true"
+    aria-labelledby="support-title">
+    <div class="modal__backdrop" data-close-support></div>
+    <form id="support-form" class="modal__content modal__content--form help-content">
+      <button class="modal__close" type="button" data-close-support aria-label="Cerrar">×</button>
+      <p class="eyebrow">Soporte</p>
+      <h2 id="support-title">Contactar con soporte</h2>
+      <p>Envíanos el reporte desde aquí. Se registrará internamente para darle seguimiento.</p>
+      <label for="support-category">Categoría</label>
+      <select id="support-category" required>
+        <option value="Error">Error de la aplicación</option>
+        <option value="Sugerencia">Sugerencia</option>
+        <option value="Cuenta">Problema con la cuenta</option>
+        <option value="Otro">Otro</option>
+      </select>
+      <label for="support-report-title">Asunto</label>
+      <input id="support-report-title" type="text" minlength="5" maxlength="120" required
+        placeholder="Resume el problema">
+      <label for="support-description">Descripción</label>
+      <textarea id="support-description" rows="5" minlength="20" maxlength="5000" required
+        placeholder="Explica qué ocurrió y qué esperabas que pasara"></textarea>
+      <label for="support-steps">Pasos para reproducir <span>(opcional)</span></label>
+      <textarea id="support-steps" rows="4" maxlength="3000"
+        placeholder="1. Abrí...&#10;2. Seleccioné...&#10;3. Apareció..."></textarea>
+      <p class="field-hint">No incluyas contraseñas, claves API ni información sensible.</p>
+      <p id="support-message" class="form-error" role="status"></p>
+      <button class="button button--primary button--full" type="submit">
+        Enviar reporte
+      </button>
+      <p class="field-hint">La notificación por correo se añadirá en una versión futura.</p>
+    </form>
+  </div>
+
+  <div id="auth-notice" class="auth-notice is-hidden" role="status"
     aria-labelledby="auth-notice-title" aria-describedby="auth-notice-message">
     <div class="auth-notice__backdrop"></div>
     <section class="auth-notice__card">
       <span id="auth-notice-icon" class="auth-notice__icon" aria-hidden="true">!</span>
       <h2 id="auth-notice-title">No se pudo iniciar sesión</h2>
       <p id="auth-notice-message"></p>
-      <button id="auth-notice-close" class="button button--primary button--full" type="button">
-        Entendido
-      </button>
     </section>
   </div>
 
@@ -639,6 +740,6 @@
     <span class="loading-spinner" aria-hidden="true"></span>
     <strong id="global-loader-text">Cargando...</strong>
   </div>
-  <script src="/js/app.js"></script>
+  <script src="/js/app.js?v=20260614-3"></script>
 </body>
 </html>

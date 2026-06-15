@@ -131,7 +131,8 @@ npm run db:seed
 - `GET /api/integrations/status`
 - `GET /api/integrations/spotify/connect`
 - `GET /api/integrations/spotify/callback`
-- `GET /api/integrations/spotify/search?q=...&type=playlist`
+- `GET /api/integrations/spotify/playlists`
+- `DELETE /api/integrations/spotify`
 
 ## Configuración
 
@@ -150,6 +151,10 @@ Consulta `.env.example`.
 - `TRANSLATION_API_URL`: servicio compatible con LibreTranslate. Docker Compose
   levanta uno automáticamente para el desarrollo local.
 - `NYT_BOOKS_API_KEY`: habilita el filtro opcional de best sellers oficiales.
+- `GITHUB_SUPPORT_TOKEN`: token de servidor con permiso de escritura de Issues
+  únicamente sobre el repositorio de soporte.
+- `GITHUB_SUPPORT_REPO`: repositorio `propietario/nombre` donde se registran los
+  reportes. Usa uno privado si pueden incluir información sensible.
 - `RESEND_API_KEY` y `EMAIL_FROM`: envío de correos para recuperar contraseñas.
   En desarrollo, si no se configuran, la interfaz muestra el enlace de prueba.
 
@@ -172,15 +177,59 @@ npm run catalog:refresh
 
 ## Producción
 
-Antes de publicar:
+La configuración inicial recomendada para este proyecto es:
 
-1. Usa una base PostgreSQL administrada con copias de seguridad.
-2. Configura `NODE_ENV=production`, `APP_ORIGIN`, `DATABASE_URL` y `TRUST_PROXY=1`.
-3. Ejecuta `npm run db:migrate` durante el despliegue.
-4. No ejecutes `npm run db:seed`; crea usuarios reales mediante un flujo administrativo.
-5. Publica exclusivamente mediante HTTPS.
-6. Cambia las credenciales de base de datos incluidas en Docker Compose, que son solo locales.
-7. Configura monitoreo, logs, alertas y rotación de secretos.
+- Aplicación web en Render.
+- PostgreSQL en Neon mediante una conexión con SSL.
+- HTTPS administrado por Render.
+- Cloudflare únicamente cuando exista un dominio propio.
+- Monitoreo externo sobre `GET /api/health`.
+
+El archivo `render.yaml` crea el servicio web y solicita los secretos desde el
+panel de Render. No guarda credenciales en GitHub.
+
+### Despliegue
+
+1. Crea un proyecto PostgreSQL en Neon y copia su cadena de conexión con
+   `sslmode=require`.
+2. En Render, crea un Blueprint desde este repositorio.
+3. Configura como mínimo:
+   - `DATABASE_URL`: cadena de Neon.
+   - `DATABASE_SSL=true` y `DATABASE_SSL_REJECT_UNAUTHORIZED=true`.
+   - `APP_ORIGIN`: URL HTTPS final de Render, sin barra al final.
+   - `APP_ALLOWED_ORIGINS`: la misma URL mientras no exista otro dominio.
+   - `ALLOW_REGISTRATION=false`: mantiene el lanzamiento privado.
+   - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` y `SPOTIFY_REDIRECT_URI`.
+   - `NYT_BOOKS_API_KEY`.
+   - `GITHUB_SUPPORT_TOKEN` y `GITHUB_SUPPORT_REPO`.
+4. Configura `SPOTIFY_REDIRECT_URI` como
+   `https://TU-SERVICIO.onrender.com/api/integrations/spotify/callback` y registra
+   exactamente esa URL en Spotify.
+5. Agrega `RESEND_API_KEY` y `EMAIL_FROM` antes de habilitar recuperación de
+   contraseña para múltiples usuarios.
+6. El contenedor ejecuta `npm run db:migrate` al iniciar. Nunca ejecuta
+   `npm run db:seed` en producción.
+7. Comprueba `/api/health`, registro, login, Spotify, soporte y recuperación de
+   contraseña.
+
+`TRANSLATION_API_URL` es opcional. LibreTranslate consume más memoria que la
+instancia web gratuita, por lo que debe ejecutarse como servicio independiente
+o sustituirse por un proveedor externo.
+
+### Limitaciones gratuitas
+
+- Render puede suspender la aplicación tras un periodo sin tráfico, causando un
+  arranque lento en la siguiente visita.
+- Neon Free es apropiado para pruebas y uso personal, pero no ofrece las mismas
+  garantías que un plan de producción pagado.
+- No uses el PostgreSQL gratuito temporal de Render como almacenamiento
+  permanente.
+- Las fotos de perfil se guardan actualmente en PostgreSQL como datos; no
+  dependen del sistema de archivos efímero de Render.
+
+Antes de abrir el registro al público configura copias de seguridad externas,
+alertas de disponibilidad, política de privacidad, términos de uso y rotación
+de secretos.
 
 El usuario de demostración existe únicamente cuando se ejecuta `npm run db:seed`.
 - Las recomendaciones cargan hasta 20 títulos por cada género favorito.
@@ -192,5 +241,5 @@ El usuario de demostración existe únicamente cuando se ejecuta `npm run db:see
   del perfil. Los nombres de autores se conservan en su forma oficial o
   romanizada para no alterar nombres propios.
 - Las sinopsis se buscan primero en Open Library y luego en Google Books.
-- Spotify permite usar la playlist predeterminada, guardar un enlace personal o
-  seleccionar playlists de la cuenta vinculada.
+- Spotify permite usar la playlist predeterminada o seleccionar playlists de la
+  cuenta vinculada sin copiar enlaces.

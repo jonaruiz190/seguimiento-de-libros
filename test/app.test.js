@@ -25,6 +25,47 @@ test("expone health check y cabeceras de seguridad", async () => {
   assert.equal(response.headers["x-powered-by"], undefined);
 });
 
+test("oculta el modo de demostración en producción", async () => {
+  const pool = { query: async () => ({ rowCount: 1, rows: [] }) };
+  const development = await request(createApp({ pool, config })).get("/api/runtime");
+  const production = await request(createApp({
+    pool,
+    config: { ...config, isProduction: true }
+  })).get("/api/runtime");
+
+  assert.equal(development.body.demoMode, true);
+  assert.equal(production.body.demoMode, false);
+  assert.equal(production.body.registrationEnabled, true);
+  assert.match(production.headers["cache-control"], /no-store/);
+});
+
+test("permite deshabilitar el registro público en producción", async () => {
+  const pool = { query: async () => ({ rowCount: 0, rows: [] }) };
+  const productionConfig = {
+    ...config,
+    isProduction: true,
+    allowRegistration: false
+  };
+  const runtime = await request(createApp({
+    pool,
+    config: productionConfig
+  })).get("/api/runtime");
+  const registration = await request(createApp({
+    pool,
+    config: productionConfig
+  }))
+    .post("/api/auth/register")
+    .send({
+      name: "Usuario",
+      email: "usuario@example.com",
+      password: "Lecturas2026!",
+      preferences: []
+    });
+
+  assert.equal(runtime.body.registrationEnabled, false);
+  assert.equal(registration.status, 403);
+});
+
 test("no expone archivos internos del antiguo almacenamiento JSON", async () => {
   const pool = { query: async () => ({ rowCount: 1, rows: [] }) };
   const response = await request(createApp({ pool, config })).get("/data/users.json");
@@ -123,6 +164,7 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
         };
       }
       if (sql.includes("COUNT(*) FILTER")) {
+        assert.match(sql, /CURRENT_DATE - t\.started_at/);
         return {
           rowCount: 1,
           rows: [{
@@ -183,4 +225,57 @@ test("devuelve estadísticas de lectura aisladas para el usuario autenticado", a
   assert.equal(response.body.monthly.length, 12);
   assert.equal(response.body.books[0].durationDays, 10);
   assert.equal(response.body.providers[0].label, "Kindle");
+});
+
+test("crea reportes de soporte en GitHub sin exponer el token al cliente", async () => {
+  const originalFetch = globalThis.fetch;
+  let githubRequest;
+  globalThis.fetch = async (url, options) => {
+    githubRequest = { url, options };
+    return new Response(JSON.stringify({
+      number: 42,
+      html_url: "https://github.com/example/support/issues/42"
+    }), { status: 201, headers: { "Content-Type": "application/json" } });
+  };
+  const pool = {
+    query: async (sql) => {
+      if (sql.includes("FROM sessions s")) {
+        return {
+          rowCount: 1,
+          rows: [{ id: "user-1", name: "Ana", email: "ana@example.com" }]
+        };
+      }
+      throw new Error(`Consulta no contemplada: ${sql}`);
+    }
+  };
+
+  try {
+    const response = await request(createApp({
+      pool,
+      config: {
+        ...config,
+        allowedOrigins: [config.appOrigin],
+        githubSupportToken: "server-only-token",
+        githubSupportRepo: "example/support"
+      }
+    }))
+      .post("/api/support/reports")
+      .set("Cookie", "sid=session-token")
+      .set("Origin", config.appOrigin)
+      .send({
+        category: "Error",
+        title: "El dashboard no carga",
+        description: "La pantalla queda cargando después de aplicar los filtros.",
+        steps: "Abrir Dashboard y aplicar el filtro Leyendo.",
+        page: "/?view=dashboard"
+      });
+
+    assert.equal(response.status, 201);
+    assert.equal(response.body.report.number, 42);
+    assert.match(githubRequest.url, /api\.github\.com\/repos\/example\/support\/issues/);
+    assert.equal(githubRequest.options.headers.Authorization, "Bearer server-only-token");
+    assert.equal(JSON.stringify(response.body).includes("server-only-token"), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

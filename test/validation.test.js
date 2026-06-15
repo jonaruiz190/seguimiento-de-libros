@@ -71,6 +71,23 @@ test("rechaza estados y puntuaciones inválidos", () => {
   }), /no son válidos/);
 });
 
+test("acepta lecturas en pausa y abandonadas", () => {
+  for (const status of ["En pausa", "Abandonado"]) {
+    const result = validate(trackingSchema, {
+      bookId: "dune",
+      status,
+      rating: 0,
+      comment: "",
+      format: "Digital",
+      startedAt: "2026-06-01",
+      finishedAt: null,
+      readingProvider: "Kindle",
+      currentPage: 42
+    });
+    assert.equal(result.status, status);
+  }
+});
+
 test("rechaza una finalización anterior al inicio", () => {
   assert.throws(() => validate(trackingSchema, {
     bookId: "dune",

@@ -5,6 +5,11 @@ function parsePositiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value === undefined || value === null || value === "") return fallback;
+  return String(value).toLowerCase() === "true";
+}
+
 function parseOrigins(primaryOrigin, value) {
   const origins = String(value || "")
     .split(",")
@@ -27,8 +32,14 @@ export function loadConfig() {
     isProduction: nodeEnv === "production",
     port: parsePositiveInteger(process.env.PORT, 3000),
     databaseUrl,
+    databaseSsl: parseBoolean(process.env.DATABASE_SSL, nodeEnv === "production"),
+    databaseSslRejectUnauthorized: parseBoolean(
+      process.env.DATABASE_SSL_REJECT_UNAUTHORIZED,
+      true
+    ),
     appOrigin,
     allowedOrigins: parseOrigins(appOrigin, process.env.APP_ALLOWED_ORIGINS),
+    allowRegistration: parseBoolean(process.env.ALLOW_REGISTRATION, nodeEnv !== "production"),
     sessionDays: parsePositiveInteger(process.env.SESSION_DAYS, 7),
     trustProxy: parsePositiveInteger(process.env.TRUST_PROXY, 0),
     spotifyClientId: process.env.SPOTIFY_CLIENT_ID || "",
@@ -39,6 +50,9 @@ export function loadConfig() {
     translationApiUrl: process.env.TRANSLATION_API_URL || "",
     translationApiKey: process.env.TRANSLATION_API_KEY || "",
     nytBooksApiKey: process.env.NYT_BOOKS_API_KEY || "",
+    githubSupportToken: process.env.GITHUB_SUPPORT_TOKEN || "",
+    githubSupportRepo: process.env.GITHUB_SUPPORT_REPO ||
+      "jonaruiz190/seguimiento-de-libros",
     resendApiKey: process.env.RESEND_API_KEY || "",
     emailFrom: process.env.EMAIL_FROM || ""
   };
